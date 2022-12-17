@@ -1,7 +1,7 @@
 include "std/control/chips";
-include "./mfront_lexer";
-include "./mfront_symtab";
-include "./mfront_expr";
+include "./mfront/lib/mfront_lexer";
+include "./mfront/lib/mfront_symtab";
+include "./mfront/lib/mfront_expr";
 
 chip loader(filename: string, fail:string->0) 
   connector io
@@ -30,55 +30,13 @@ chip comment_stripper
   done
 }
 
-// FIXME: this procedure is used by all the classes
-// in the include files .. so it HIJACKS their semantics
-// with an implicit parameter.
-//
-// The problem to solve is this: you can call this inside a
-// function which is defined procedurally, or in a procedure.
-// But it cannot be directly in a branch of a functional match.
-//
-// The strict functional form is fail<type>: 1 -> type
-// and the lazy form is fail: 1 -> any
-//
-// which should be usable in a match whose other branches
-// all have a fixed type.
-//
-// The problem in Felix is we want to use ONE entity 
-// as the error handler .. and we want the handler to actually
-// write on a channel .. and that procedural imperative CANNOT
-// be inside a function because functions cannot be suspended
-//
-// We have a technical solution: to THROW it to a procedure
-// using call-with-trap. That machinery was invented specifically
-// for error handling. Throwing a continuation uses C++ throw,
-// which CAN escape from a function and unwind the machine stack.
-//
-// at the moment the System::exit is even more extreme in that it 
-// escapes the whole process
-
-
-// LEGACY error handling: we want to get rid of this one
-// because it's an implicit parameter of code that calls it
-
-/*
-proc fail (e:string) {
-  println$ "Legacy fail: " + e;
-  System::exit(1);
-}
-*/
-
-// this is the new error handler
-// In the future we will try to get the line number
-// of the input and print that too so the client programmer
-// know which input line is wrong
-
-chip ehandler 
+// Error handling chip.
+chip ehandler  
   connector io
     pin inp : %< string
 {
   var e = read io.inp;
-  println$ "[ehandler] Error: " + e;
+  println$ "[ehandler]: " + e;
   System::exit(1);
 }
 

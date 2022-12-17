@@ -16,6 +16,18 @@ chip loader(filename: string, fail:string->0)
   done
 }
 
+chip line_counter (counter: &int)  
+  connector io
+    pin inp: %<string
+    pin out: %>string
+{
+  while true do
+   var line = read io.inp;
+   post_incr counter;
+   write (io.out, line);
+  done
+}
+
 chip comment_stripper
   connector io
     pin inp: %< string
@@ -39,22 +51,6 @@ chip ehandler
   println$ "[ehandler]: " + e;
   System::exit(1);
 }
-
-// this is the new way to do errors
-// We use a closure binding the channel
-// which is connected to the chosen error handling chip
-//
-// a top level procedure or one it calls can just
-// call this procedure instead of fail
-// 
-// however a function has to bind the message to
-// build a continuation, and then throw it
-// to unwind the stack until a top level procedure
-// catches it.
-//
-// The semantics of catch are to forget the spaghetti stack
-// and invoke the procedure continuation instead.
-// This "unwinds" the spaghetti stack by simply forgetting it
 
 // ISSUE: what should nested switches do??
 //
@@ -364,7 +360,7 @@ class stmt_parser {
 }
 
 // NOTE: tabs comments to column 35
-chip printer  
+chip printer  (line_count: &<int)
   connector io
     pin inp : %< string
 {
@@ -373,14 +369,14 @@ chip printer
     | None => var out = line;
     | Some k =>
       var l = line.[to k];
-      var r = line.[k to];
+      var r = line.[k + 1 to];
       if l.len.int > 32 do
         l= l+ " ";
       else
         l = (l.rstrip + " " * 35).[0 to 35];
       done
       if r.len.int > 0 do
-        out = l + r;
+        out = l + "#" + f"%4d: " (*line_count) + r.strip;
       else
         out = l;
       done
@@ -411,21 +407,24 @@ chip printer
 
 
 proc run(filename:string) {
+  var line_count = 0;
   var ein,eout = mk_ioschannel_pair[string]();
   proc ewriter (e: string) {
     while true do
-      write (eout, "fail: " + e); 
+      write (eout, "fail["+ line_count.str + "]: " + e); 
     done
   }
   proc failproc (e:string) { throw_continuation { ewriter e; }; };
 
   device source = loader (filename, failproc);
   device stmt = stmt_parser::stmt failproc;
-
+  device counter = line_counter &line_count;
+  device printout = printer &line_count;
   circuit 
-    connect source.out, comment_stripper.inp
+    connect source.out, counter.inp
+    connect counter.out, comment_stripper.inp
     connect comment_stripper.out, stmt.inp
-    connect stmt.out, printer.inp
+    connect stmt.out, printout.inp
     wire ein to ehandler.inp
   endcircuit
 }

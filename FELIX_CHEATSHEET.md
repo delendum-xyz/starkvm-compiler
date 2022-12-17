@@ -114,8 +114,8 @@ done
   
 # function
 ```
-fun swapT,U] (x:T,y:U) => y,x;
-fun swapT,U] (x:T,y:U) { return y,x; }
+fun swap[T,U] (x:T,y:U) => y,x;
+fun swap[T,U] (x:T,y:U) { return y,x; }
 ```
 
 # procedure
@@ -183,7 +183,7 @@ fun f[T with Add[T]] (x:T) => add(x,x);
 ## spawn_fthread
 ```
 spawn_fthread: 1->0->0
-spawn_fthread { printon$ "Hello"; }
+spawn_fthread { println$ "Hello"; };
 ```
 Service call to spawn a new fibre on callee's scheduler.
 Adds fibre to scheduler active list.
@@ -191,7 +191,7 @@ Adds fibre to scheduler active list.
 ## Run 
 ```
 run: 1->0->0
-run { printon$ "Hello"; }
+run { printon$ "Hello"; };
 ```
 Subroutine to spawn a new fibre on a new scheduler.
 Subroutine call terminates when the scheduler has no active fibres.
@@ -223,7 +223,7 @@ suicide;
 ```
 Terminates fibre, releasing all channels.
 
-## Operaion.
+## Operation.
 A scheduler owns a list of active fibres. It picks
 one at random and runs it until the fibre terminates
 or suspends itself.
@@ -260,7 +260,7 @@ Sequential Coroutines) to CSP (Communicating Sequential
 Processes) and data synchronisation using locks may
 be required to enforce atomicity of data operations.
 However, abstraction is increased and real time 
-performance enhanced concurrency.
+performance enhanced with concurrency.
 
 ## Note: FP myth
 There is a myth that lists are finite and streams infinite.
@@ -281,7 +281,7 @@ Streams and lists, or more generally inductive and coinductive
 types are bridged by swapping from the spatial world of functions
 and products to the temporal world of cofunctions and sums using
 the `run` subroutine and termination semantics. There is a bridge
-in the opposate direction using pointers to mutable store.
+in the opposite direction using pointers to mutable store.
 
 We note, iterators and generators are special cases of bridges.
 
@@ -291,15 +291,9 @@ at the price of indeterminate evaluation ordering compared
 to functions: they operate using continuation semantics,
 which can be difficult to manage. 
 
-Functions are also have indeterminate ordering, depending
+Functions also have indeterminate ordering, depending
 on the evaluation strategy, however dependencies tighten
 event relations to a partial order. Trees are much easier to
-understand than arbitrary circuits.
-
-
-
-
-
-
-
+understand than arbitrary circuits: witness the strength
+of functional programming language type systems.
 

@@ -3,11 +3,13 @@ include "./mfront_lexer";
 include "./mfront_symtab";
 include "./mfront_expr";
 
-chip loader(filename: string) 
+chip loader(filename: string, fail:string->0) 
   connector io
     pin out : %> string
 {
   var f = load(filename);
+  if f == "" perform 
+    throw_continuation { fail$ "Missing input file " + filename; };
   var lines = split(f,char "\n");
   for line in lines do
     write (io.out, line);
@@ -55,11 +57,46 @@ chip comment_stripper
 // at the moment the System::exit is even more extreme in that it 
 // escapes the whole process
 
-proc fail(e: string) {
-  println$ "Parse Error: " + e;
+
+// LEGACY error handling: we want to get rid of this one
+// because it's an implicit parameter of code that calls it
+
+/*
+proc fail (e:string) {
+  println$ "Legacy fail: " + e;
+  System::exit(1);
+}
+*/
+
+// this is the new error handler
+// In the future we will try to get the line number
+// of the input and print that too so the client programmer
+// know which input line is wrong
+
+chip ehandler 
+  connector io
+    pin inp : %< string
+{
+  var e = read io.inp;
+  println$ "[ehandler] Error: " + e;
   System::exit(1);
 }
 
+// this is the new way to do errors
+// We use a closure binding the channel
+// which is connected to the chosen error handling chip
+//
+// a top level procedure or one it calls can just
+// call this procedure instead of fail
+// 
+// however a function has to bind the message to
+// build a continuation, and then throw it
+// to unwind the stack until a top level procedure
+// catches it.
+//
+// The semantics of catch are to forget the spaghetti stack
+// and invoke the procedure continuation instead.
+// This "unwinds" the spaghetti stack by simply forgetting it
 
 // ISSUE: what should nested switches do??
 //
@@ -92,7 +129,7 @@ proc fail(e: string) {
 
 class stmt_parser {
 
-  proc checkint(x:string) {
+  proc checkint (fail: string->0) (x:string) {
     for ch in x do
       if not isdigit(ch) perform
         fail("GOTO target must be integer, got " + x);
@@ -105,7 +142,7 @@ class stmt_parser {
     | whileblock
   ;
 
-  chip stmt
+  chip stmt (fail:string -> void)
     connector io
       pin inp : %< string
       pin out : %> string
@@ -145,7 +182,7 @@ class stmt_parser {
       ++counter;
       var line = read(io.inp);
       //prln$ counter.str + ": " + line;
-      var tokens = line.lexer::lex;
+      var tokens = lexer::lex fail line;
       match tokens with
       | Cons (head, tail) => 
         h = head;
@@ -163,7 +200,7 @@ class stmt_parser {
           prln$ "pop.mem."+pc_address.str + " # save PC"+pc_nest.str;
         elif h == "GOTO" do
           advance;
-          checkint(h); // check the next token is an integer
+          checkint fail h; // check the next token is an integer
           var labval = int h;
           if labval > max_lab.0 perform
             max_lab = labval, counter;
@@ -173,7 +210,7 @@ class stmt_parser {
           prln$ "# -------";
         elif h == "LABEL" do
           advance;
-          checkint(h); // check the next token is an integer
+          checkint fail h; // check the next token is an integer
           labval = int h;
           if labval != label_counter 
             perform fail ("Invalid label counter " + h ", should be " + label_counter.str);
@@ -208,10 +245,10 @@ class stmt_parser {
           prln$ "# SWITCH EXIT";
         // eval
         elif h == "eval" do
-          var e,rest = expr_parser::parse_expr t;
+          var e,rest = expr_parser::parse_expr fail t;
           prln$ "# " + line;
           //prln$ "# eval[parsed] "  e.str;
-          pr$ symtab&.expr_emit::postfix e;
+          pr$ expr_emit::postfix fail &symtab e;
 
         // let
         elif h == "let" do
@@ -227,13 +264,13 @@ class stmt_parser {
           if h != "=" do
             fail("Variable decl requires = symbol");
           done
-          symtab&.add name mut "u32";
+          add fail &symtab name mut "u32";
           //prln$ "# Added variable '" + name +"' to symbol table";
-          var e2,rest2 = expr_parser::parse_expr t;
+          var e2,rest2 = expr_parser::parse_expr fail t;
           //prln$ "# eval[inp] " + cat " " tokens;
           //prln$ "# eval[parsed] " +  e2.str;
-          pr$ symtab&.expr_emit::postfix e2 ;
-          prln$ "pop.local." + symtab&.get_address name +"# init " + name;
+          pr$ expr_emit::postfix fail &symtab e2 ;
+          prln$ "pop.local." + get_address fail &symtab name +"# init " + name;
 
           // assignment (requires "assign" binder)
 
@@ -241,9 +278,9 @@ class stmt_parser {
           prln$ " # " + line;
           name = h;
           advance;
-          e,rest = expr_parser::parse_expr t;
-          pr$ symtab&.expr_emit::postfix e ;
-          var sym = symtab&.get_info name;
+          e,rest = expr_parser::parse_expr fail t;
+          pr$ expr_emit::postfix fail &symtab e ;
+          var sym = get_info fail &symtab name;
           if not sym.mut do
             fail("Write to immutable variable " + name);
           done
@@ -257,8 +294,8 @@ class stmt_parser {
           | Cons ("{", tail) => 
             t = tail.rev;
             // evaluate condition
-            e,rest = expr_parser::parse_expr t;
-            pr$ symtab&.expr_emit::postfix e ;
+            e,rest = expr_parser::parse_expr fail t;
+            pr$ expr_emit::postfix fail &symtab e ;
             prln("while.true # Rust while");
             ifelsestack = Cons(whileblock,ifelsestack);
           | _ => fail ("while requires trailing {");
@@ -300,8 +337,8 @@ class stmt_parser {
           | Cons ("{", tail) => 
             t = tail.rev;
             // evaluate condition
-            e,rest = expr_parser::parse_expr t;
-            pr$ symtab&.expr_emit::postfix e ;
+            e,rest = expr_parser::parse_expr fail t;
+            pr$ expr_emit::postfix fail &symtab e ;
             prln("if.true # Rust if");
             ifelsestack = Cons(ifblock 1,ifelsestack);
           | _ => fail ("if requires trailing {");
@@ -352,8 +389,8 @@ class stmt_parser {
                 ifelsestack = Cons (ifblock (n+1), stk);
                 prln$ "else # Rust else if";
                 // evaluate condition
-                e,rest = expr_parser::parse_expr t;
-                pr$ symtab&.expr_emit::postfix e ;
+                e,rest = expr_parser::parse_expr fail t;
+                pr$ expr_emit::postfix fail &symtab e ;
                 prln("if.true # Rust else if");
               endmatch; // ifelse
             endmatch; // else 
@@ -416,12 +453,22 @@ chip printer
 
 
 proc run(filename:string) {
-  device source = loader (filename);
-  device stmt = stmt_parser::stmt;
+  var ein,eout = mk_ioschannel_pair[string]();
+  proc ewriter (e: string) {
+    while true do
+      write (eout, "fail: " + e); 
+    done
+  }
+  proc failproc (e:string) { throw_continuation { ewriter e; }; };
+
+  device source = loader (filename, failproc);
+  device stmt = stmt_parser::stmt failproc;
+
   circuit 
     connect source.out, comment_stripper.inp
     connect comment_stripper.out, stmt.inp
     connect stmt.out, printer.inp
+    wire ein to ehandler.inp
   endcircuit
 }
 

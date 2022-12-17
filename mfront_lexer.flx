@@ -12,7 +12,7 @@ class lexer {
     Alph   // accumuling alphnumeric 
   }
 
-  fun lex(inp: string) : list[string] {
+  fun lex (fail: string->0) (inp: string) : list[string] {
     // state machine
     var state = Spc;              // machine state
     var i = 0;                    // index into input string

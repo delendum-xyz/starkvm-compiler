@@ -1,0 +1,13 @@
+SWITCH
+  let mut x = 1
+  LABEL 2 
+    x = x - 1
+    if x > 0 {
+      GOTO 3
+    }
+    BREAK
+  LABEL 3
+    GOTO 2
+  LABEL 4
+  after.inner.switch
+ENDSWITCH

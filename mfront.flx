@@ -28,10 +28,67 @@ chip comment_stripper
   done
 }
 
+// FIXME: this procedure is used by all the classes
+// in the include files .. so it HIJACKS their semantics
+// with an implicit parameter.
+//
+// The problem to solve is this: you can call this inside a
+// function which is defined procedurally, or in a procedure.
+// But it cannot be directly in a branch of a functional match.
+//
+// The strict functional form is fail<type>: 1 -> type
+// and the lazy form is fail: 1 -> any
+//
+// which should be usable in a match whose other branches
+// all have a fixed type.
+//
+// The problem in Felix is we want to use ONE entity 
+// as the error handler .. and we want the handler to actually
+// write on a channel .. and that procedural imperative CANNOT
+// be inside a function because functions cannot be suspended
+//
+// We have a technical solution: to THROW it to a procedure
+// using call-with-trap. That machinery was invented specifically
+// for error handling. Throwing a continuation uses C++ throw,
+// which CAN escape from a function and unwind the machine stack.
+//
+// at the moment the System::exit is even more extreme in that it 
+// escapes the whole process
+
 proc fail(e: string) {
   println$ "Parse Error: " + e;
   System::exit(1);
 }
+
+
+// ISSUE: what should nested switches do??
+//
+// My brain is saying a SWITCH introduces a scope
+// so actually it is like a C block { ... }
+//
+// This means it has local variables, and it means
+// from inside a SWITCH we can jump locally to any label
+// inside the switch, OR to any label in an ancestor.
+// But you cannot jump from outside to inside.
+//
+// The semantics at the moment don't support nesting
+// because "SWITCH" sets the global PC to 1.
+//
+// There are two choices: using a global PC and a stack for
+// local variables matches how C's von Neumann machine works.
+// This means the labels in a nested switch must be distinct
+// from the ones in an enclosing switch, so that labels
+// are globally unique (well, at least within a procedure).
+//
+// OTOH, if we use a separate PC for a nested switch,
+// we CANNOT jump to an arbitrary external label 
+// we are FORCED to exit the switch by "falling through"
+//
+// This makes the SWITCH behave more like a "basic block":
+// ONE entry point and ONE exit only.
+//
+// In fact, this can 
+
 
 class stmt_parser {
 

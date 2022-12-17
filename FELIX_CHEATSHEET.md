@@ -20,7 +20,7 @@
 | A + B  | assoc | low  | Sum (numbered choice)
 | A * B  | assoc | med  | Product (tuple)
 | A ^ B  | L     | vhi  | array
-| A +* B | L     | hi   | coarray
+| A *+ B | L     | hi   | coarray
 | &X     | prix  | vhi  | RW address
 | &<X     | prix  | vhi  | R address
 | &>X     | prix  | vhi  | W address
@@ -94,13 +94,13 @@ proc (x:int) { println$ x; }
 
 # variables
 ```
-var x = 1; // mutable, addressable
-val x = 1; // reassignable, not addressable
+var x = 1; // mutable, addressable, eager
+val x = 1; // single assignment, not addressable, maybe lazy
 ```
 
 # loops
 ```
-for (var i = 1; i < 20; ++i) perform
+for (var i = 1; i < 20; ++i; ) perform
   println$ "hello"
 ;
 for i in 1,2,3,4 do
@@ -115,6 +115,7 @@ done
 # function
 ```
 fun swapT,U] (x:T,y:U) => y,x;
+fun swapT,U] (x:T,y:U) { return y,x; }
 ```
 
 # procedure
@@ -134,25 +135,6 @@ gen ints() {
 }
 ```
   
-# type class
-```
-class Add[T] (
-  virtual fun add: T * T -> T;
-  virtual type U;
-  fun add3 (x:T, y:T, z:T) => add(add(x,y),z);
-  type Int = int;
-
-```
-Virtuals are overridable but may have defaults.
-Non virtuals cannot be overriden.
-```
-instance Add[int] {
-  fun add(x:int, y:int) = "$1+$2";
-  typedef U = int;
-}
-```
-Instances only need to override used entities.
-
 # Nominal Types
 ## struct
 ```
@@ -174,4 +156,26 @@ variant Maybe[T] =
 ;
 ```
 
+## type class
+```
+class Add[T] (
+  virtual fun add: T * T -> T;
+  virtual type U;
+  fun add3 (x:T, y:T, z:T) => add(add(x,y),z);
+  type Int = int;
+
+```
+Virtuals are overridable but may have defaults.
+Non virtuals cannot be overriden.
+```
+instance Add[int] {
+  fun add(x:int, y:int) = "$1+$2";
+  typedef U = int;
+}
+```
+Instances only need to override used entities.
+```
+open[int] Add[int]; // open class specialisation
+fun f[T where Add[T]] (x:T) => add(x,x);
+```
 

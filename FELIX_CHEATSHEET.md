@@ -8,7 +8,7 @@
 | #f     | prefix| vhi  | f ()
 | p &. x |       |      | (&p) . x
 | p *. x |       |      | (*p) . x
-| p -> x |       |      | (*p) -> x
+| p -> x |       |      | (*p) . x
 
 # Type Constructors
 | syntax | assoc | prec | Notes
@@ -29,13 +29,14 @@
 | %>X     | prix  | vhi  | W channel 
 
 # Primitives
+```
 int8 int16 int32 int64 int128 int256
 uint8 uint16 uint32 uint64 uint128 uint256
 short int long vlong
 float double ldouble
 fcomplex dcomplex lcomplex
 string
-
+```
 
 ## Record
 

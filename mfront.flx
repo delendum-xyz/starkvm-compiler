@@ -376,7 +376,8 @@ chip printer  (line_count: &<int)
         l = (l.rstrip + " " * 35).[0 to 35];
       done
       if r.len.int > 0 do
-        out = l + "#" + f"%4d: " (*line_count) + r.strip;
+        var outcmt = (r.strip + " " *40).[to 40];
+        out = l + "# " + outcmt + f":%4d" (*line_count);
       else
         out = l;
       done

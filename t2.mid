@@ -9,5 +9,12 @@ SWITCH
   LABEL 3
     GOTO 2
   LABEL 4
-  after.inner.switch
+  CALL 6
+LABEL 5
+  GOTO 2 # to stop fallthrough into procedure ..
+
+LABEL 6 # procedure
+  x = x + 1
+  RETURN
+
 ENDSWITCH

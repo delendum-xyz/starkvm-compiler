@@ -107,12 +107,15 @@ class stmt_parser {
 
     var counter = 0;
     var ifelsestack = Empty[ifparity_t];
-    var label_counter = 2; // the first user label must be 2
+    var label_counter = 1; // the first user label must be 1
     var max_lab = (0,0); // error tracking: label index, line used
 
     // SWITCH nesting depth control
-    var switch_depth = 0;
     var pc_address = 1000;
+    var sp_address = 1001;
+    var sp_base = 4000;
+
+    var switch_depth = 0;
 
     var h: string;
     var t: lexer::toks_t;
@@ -131,6 +134,8 @@ class stmt_parser {
     var symtab = symbol_table_t(0, strdict[syminfo_t]());
 
     var switch_counter = 1;
+    var next_instr_must_be_label = false;
+
     while true do
       ++counter;
       var line = read(io.inp);
@@ -140,42 +145,53 @@ class stmt_parser {
       | Cons (head, tail) => 
         h = head;
         t = tail;
-        
+
+        // check if last instruction was CALL
+        if h != "LABEL" and next_instr_must_be_label do 
+          fail("Next instruction after CALL must be LABEL");
+        else
+          next_instr_must_be_label = false;
+        done
+         
         if h == "SWITCH" do
           if switch_depth > 0 perform fail("Nested switch not supported");
           ++switch_depth; 
-          prln$ "push.1 # begin switch  with PC = 1";
+          prln$ "push.0 # begin switch  with PC = 0";
           prln$ "pop.mem."+ pc_address.str + " # PC";
           prln$ "push.1 # make loop start";
           prln$ "while.true # begin the SWITCH";
           prln$ "push.mem."+pc_address.str + " # load PC";
-          prln$ "u32unchecked_add.1      # increment by 1";
+          prln$ "u32wrapped_add.1      # increment by 1";
+          prln$ "dup                   # keep on top of stack for comparisons";
           prln$ "pop.mem."+pc_address.str + " # save PC";
-        elif h == "GOTO" do
+          prln$ "u32checked_eq."+h+ " # check if PC is forcase 1";
+          prln$ "if.true # start code for this case";
+
+        elif h in ("GOTO", "TAILCALL") do
           advance;
           checkint fail h; // check the next token is an integer
           var labval = int h;
           if labval > max_lab.0 perform
             max_lab = labval, counter;
           prln$ "# GOTO " + h;
-          prln$ "push."+h+" # jump address"; 
+          prln$ "push."+(h.int - 1).str +" # jump address minus 1"; 
           prln$ "pop.mem." + pc_address.str + " # set PC to " + h;
           prln$ "# -------";
+
         elif h == "LABEL" do
           advance;
           checkint fail h; // check the next token is an integer
-          labval = int h;
+          labval = int h - 1;  // allow for increment in loop head 
           if labval != label_counter 
-            perform fail ("Invalid label counter " + h ", should be " + label_counter.str);
+            perform fail ("Invalid label counter " + h ", should be " + (label_counter - 1).str);
           ++label_counter; 
           prln$ "# LABEL " + h;
-          if switch_counter > 2 perform
-            prln$ "else # end case " + (switch_counter - 1).str;
+          prln$ "else # end case " + (switch_counter - 1).str;
           prln$ "u32checked_eq."+h+ " # check if PC is for this case";
           prln$ "if.true # start code for this case";
           ++switch_counter; // count the number of 'end' we need at the switch end
         elif h == "BREAK" do
-          prln$ "push.0 # 0";
+          prln$ "push.0xFFFFFFFF # BREAK";
           prln$ "pop.mem."+pc_address.str + "# ->PC";
 
         elif h == "ENDSWITCH" do
@@ -185,18 +201,43 @@ class stmt_parser {
           if max_lab.0 > switch_counter perform
             fail("Jump to non existent label " + max_lab.0.str + " line " + max_lab.1.str);
           var end_case = switch_counter;
-          while switch_counter > 1 do
+          while switch_counter > 0 do
             prln$ "end # switch case "+switch_counter.str;
             --switch_counter;
           done
+          // termination is now PC >= end case
+          // catches break too because it's now 0xFFFF_FFFF
           prln$ "push.mem."+pc_address.str + " #load PC";
-          prln$ "dup";
-          prln$ "u32checked_eq.0"; // test for break
-          prln$ "swap";
-          prln$ "u32checked_eq." + end_case.str; // test for fall through
-          prln$ "u32checked_and";
+          prln$ "u32checked_ge." + end_case.str; 
           prln$ "end #while loop";
           prln$ "# SWITCH EXIT";
+
+        elif h=="CALL" do
+          advance;
+          checkint fail h;
+          var target = h.int;
+          next_instr_must_be_label = true;
+          prln$ "push.mem."+pc_address.str+ " # get PC";
+          prln$ "push.mem."+sp_address.str+ " # get SP";
+          prln$ "u32unchecked_sub.1       # SP--";
+          prln$ "dup";
+          prln$ "pop.mem"+sp_address.str+" # save SP";
+          prln$ "pop.mem                 # store PC at SP";
+          prln$ "push."+(target - 1).str +" # CALL target - 1";
+          prln$ "pop.mem."+pc_address.str+" # set PC to target - 1";
+
+        elif h=="RETURN" do
+          // NOTE: the return address is that of the block containing
+          // the original call instruction, but the loop head will
+          // increment it to the next block allowing the caller to continue
+          // after the call instruction
+          prln$ "push.mem."+sp_address.str+ " # get SP";
+          prln$ "dup";
+          prln$ "u32unchecked_add.1 # pop stack";
+          prln$ "pop.mem."+sp_address+" # save SP"; 
+          prln$ "push.mem # get return address";
+          prln$ "pop.mem."+pc_address.str+" # set PC";
+
         // eval
         elif h == "eval" do
           var e,rest = expr_parser::parse_expr fail t;

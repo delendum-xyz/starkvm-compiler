@@ -208,7 +208,7 @@ class stmt_parser {
           // termination is now PC >= end case
           // catches break too because it's now 0xFFFF_FFFF
           prln$ "push.mem."+pc_address.str + " #load PC";
-          prln$ "u32checked_ge." + end_case.str; 
+          prln$ "u32unchecked_le." + end_case.str; 
           prln$ "end #while loop";
           prln$ "# SWITCH EXIT";
 

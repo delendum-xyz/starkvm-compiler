@@ -1,0 +1,78 @@
+class MidenOpcodes {
+  fun us32_opcodes() {
+    "u32test"
+    "u32testw"
+    "u32assert"
+    "u32assert.1"
+    "u32assert.2"
+    "u32assertw"
+    "u32cast"
+    "u32split"
+
+    "u32checked_add"
+    "u32checked_add.$"
+    "u32overflowing_add"
+    "u32overflowing_add.$"
+    "u32wrapping_add"
+    "u32wrapping_add.$"
+    "u32overflowing_add3"
+    "u32wrapping_add3.$"
+
+    "u32checked_sub"
+    "u32checked_sub.$"
+    "u32overflowing_sub"
+    "u32overflowing_sub.$"
+    "u32wrapping_sub"
+    "u32wrapping_sub.$"
+
+    "u32checked_mul"
+    "u32checked_mul.$"
+    "u32overflowing_mul"
+    "u32overflowing_mul.$"
+    "u32wrapping_mul"
+    "u32wrapping_mul.$"
+    "u32overflowing_madd"
+    "u32wrapping_madd.$"
+
+    "u32checked_div"
+    "u32checked_div.$"
+    "u32unchecked_div"
+    "u32unchecked_div.$"
+
+    "u32checked_mod"
+    "u32checked_mod.$"
+    "u32unchecked_mod"
+    "u32unchecked_mod.$"
+
+    "u32checked_divmod"
+    "u32checked_divmod.$"
+    "u32unchecked_mod"
+    "u32unchecked_mod.$"
+
+    "u32checked_and"
+    "u32checked_or"
+    "u32checked_not"
+
+    "u32checked_shl"
+    "u32checked_shl.$"
+    "u32unchecked_shl"
+    "u32unchecked_shl.$"
+
+    "u32checked_shr"
+    "u32checked_shr.$"
+    "u32unchecked_shr"
+    "u32unchecked_shr.$"
+
+    "u32checked_rotl"
+    "u32checked_rotl.$"
+    "u32unchecked_rotl"
+    "u32unchecked_rotl.$"
+
+    "u32checked_rotr"
+    "u32checked_rotr.$"
+    "u32unchecked_rotr"
+    "u32unchecked_rotr.$"
+
+  } 
+}
+

@@ -20,28 +20,28 @@ class expr_sym {
   var binop_map = strdict[string]();
   var unop_map = strdict[string]();
 
-  binop_map.add "+" "u32unchecked_add # +\n";
-  binop_map.add "-" "u32unchecked_sub # -\n";
-  binop_map.add "*" "u32unchecked_mul # *\n";
-  binop_map.add "/" "u32unchecked_div # /\n";
-  binop_map.add "%" "u32unchecked_mod # %\n";
+  binop_map.add "+" "u32checked_add # +\n";
+  binop_map.add "-" "u32checked_sub # -\n";
+  binop_map.add "*" "u32checked_mul # *\n";
+  binop_map.add "/" "u32checked_div # /\n";
+  binop_map.add "%" "u32checked_mod # %\n";
 
-  binop_map.add "&" "u32unchecked_and # and\n";
-  binop_map.add "|" "u32unchecked_or # or \n";
-  binop_map.add "^" "u32unchecked_xor # xor\n";
+  binop_map.add "&" "u32checked_and # and\n";
+  binop_map.add "|" "u32checked_or # or \n";
+  binop_map.add "^" "u32checked_xor # xor\n";
 
-  binop_map.add "<<" "u32unchecked_shl # <<\n";
-  binop_map.add ">>" "u32unchecked_shr # >>\n";
+  binop_map.add "<<" "u32checked_shl # <<\n";
+  binop_map.add ">>" "u32checked_shr # >>\n";
 
-  binop_map.add ">" "u32unchecked_gt # >\n";
-  binop_map.add "<" "u32unchecked_lt # <\n";
-  binop_map.add "<=" "u32unchecked_le # <=\n";
-  binop_map.add ">=" "u32unchecked_ge # >=\n";
-  binop_map.add "==" "u32unchecked_eq # ==\n";
-  binop_map.add "!=" "u32unchecked_neq # !=\n";
+  binop_map.add ">" "u32checked_gt # >\n";
+  binop_map.add "<" "u32checked_lt # <\n";
+  binop_map.add "<=" "u32checked_lte # <=\n";
+  binop_map.add ">=" "u32checked_ge # >=\n";
+  binop_map.add "==" "u32checked_eq # ==\n";
+  binop_map.add "!=" "u32checked_neq # !=\n";
 
-  unop_map.add "-" "u32unchecked_neg # neg\n";
-  unop_map.add "!" "u32unchecked_not # not\n";
+  unop_map.add "-" "u32checked_neg # neg\n";
+  unop_map.add "!" "u32checked_not # not\n";
 }
 
 class expr_parser {
@@ -252,7 +252,7 @@ class expr_emit {
     let fun pf(e:expr):string => postfix fail ps e in
     match e with
     | Const s => "push."+s+" # "+s+"\n"
-    | Ident s => let a = symbol::get_address fail ps s in "push.local."+a.str+" # <-" + s+"\n"
+    | Ident s => let a = symbol::get_address fail ps s in "loc_load."+a.str+" # <-" + s+"\n"
     | Error => "ERROR\n"
 
     | Binop (op, a, b) =>

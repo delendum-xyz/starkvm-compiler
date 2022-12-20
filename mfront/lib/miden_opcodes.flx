@@ -211,6 +211,6 @@ class MidenOpcodes {
     return false;
   }
   fun isvalidpush (x:string) {
-    return x in RE2 "push(\\.\\d|0x[[:xdigit:]]+){1,16}";
+    return x in RE2 "push(\\.(\\d|0x[[:xdigit:]]+)){1,16}";
   }
 }

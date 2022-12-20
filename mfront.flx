@@ -168,7 +168,7 @@ class stmt_parser {
           prln$ "u32wrapping_add.1      # increment by 1";
           prln$ "dup                   # keep on top of stack for comparisons";
           prln$ "mem_store."+pc_address.str + " # save PC";
-          prln$ "u32checked_eq."+h+ " # check if PC is forcase 1";
+          prln$ "u32checked_eq.1 # check if PC is forcase 1";
           prln$ "if.true # start code for this case";
 
         elif h in ("GOTO", "TAILCALL") do
@@ -270,7 +270,7 @@ class stmt_parser {
           //prln$ "# eval[inp] " + cat " " tokens;
           //prln$ "# eval[parsed] " +  e2.str;
           pr$ expr_emit::postfix fail &symtab e2 ;
-          prln$ "pop.local." + get_address fail &symtab name +"# init " + name;
+          prln$ "loc_store." + get_address fail &symtab name +"# init " + name;
 
           // assignment (requires "assign" binder)
 
@@ -284,7 +284,7 @@ class stmt_parser {
           if not sym.mut do
             fail("Write to immutable variable " + name);
           done
-          prln$ "pop.local." + sym.loc.str + "# " + name + "<-";
+          prln$ "loc_load." + sym.loc.str + "# " + name + "<-";
 
         elif h == "while" do
           chainmatch t with

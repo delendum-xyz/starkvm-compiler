@@ -1,0 +1,202 @@
+
+include "gui/__init__";
+open FlxGui;
+
+println$ "MidenVM Visual Emulator";
+
+// Initialise the SDL system (SDL + TTF + IMAGE)
+FlxGui::init();
+
+var font : font_t = 
+  let font_name = dflt_sans_serif_font() in
+  get_font(font_name, 12)
+;
+var lskip = font.get_lineskip;
+
+typedef butio_t = (butout: %>event_t, butresp: %<button_action_t);
+
+// make an event handler for our window
+chip ehandler 
+  (w:window_t)
+  (buts: varray[butio_t])
+connector pins
+  pin input: %<event_t
+{
+   // get a first event from the window manager
+  var e: event_t = read pins.input;
+
+  // while the event isn't a quit event ..
+  while e.window.event.SDL_WindowEventID != SDL_WINDOWEVENT_CLOSE  do
+    // print a diagnostic
+    var s = 
+      match e with
+      | WINDOWEVENT we =>
+        we.type.SDL_EventType.str + ": " + we.event.SDL_WindowEventID.str + " wid=" + we.windowID.str
+      | MOUSEMOTION me =>
+        me.type.SDL_EventType.str
+      | _ => ""
+    ;
+    for but in buts do
+      // subroutine call on channels
+      var result = (but.butout, but.butresp) e;
+      match result with
+      | #NoAction => ;
+      | ClickAction s => println$ "Button Clicked: " + s;
+      endmatch;
+    done
+
+    // get another event
+    e= read pins.input;
+  done
+
+  // we must have got a quit ..
+  println$ "CLOSE EVENT";
+} 
+
+// Button colours
+var skin = 
+  let bsup = (label_colour=red, bg_colour=white,top_colour=blue,
+    left_colour=blue, bottom_colour=red,right_colour=red)
+  in
+
+  let bsdown = (label_colour=red, bg_colour=blue,top_colour=darkgrey,
+    left_colour=darkgrey, bottom_colour=lightgrey,right_colour=lightgrey)
+  in
+
+  let bsdis = (label_colour=red, bg_colour=black,top_colour=lightgrey,
+    left_colour=lightgrey, bottom_colour=darkgrey,right_colour=darkgrey)
+  in
+
+  let bsmover = (label_colour=red, bg_colour=yellow,top_colour=blue,
+    left_colour=blue, bottom_colour=red,right_colour=red)
+  in
+  (up=bsup, down=bsdown, mouseover=bsmover, disabled=bsdis)
+;
+
+
+proc mkbutton (
+  w:window_t,                  // window to put button on
+  x:int, y:int,                // where to put button in window
+  label:string, font:font_t,   // button label and font 
+  oresp: %>button_action_t,    // channel for button to send action on 
+  ich: %<event_t               // channel for sending events to button
+) 
+{
+  // button state object
+  var bm = ButtonModel (label,Up);
+
+  // button display object
+  var bd = ButtonDisplay (bm) (w, font, label, label, skin,
+    rect_t(x,y,40,20),point_t(x+5,y+15));
+
+  // start the button controller
+  device b = button_controller (bm,bd);
+  circuit
+    wire ich to b.ec
+    wire oresp to b.response
+  endcircuit
+}
+
+var filename = System::argv 1;
+println$ "Filename = " + filename;
+if filename == "" do
+  println$ "Filename required";
+  System::exit 1;
+done
+var text = load filename;
+if text == "" do
+  println$ "Empty file found";
+  System::exit 1;
+done
+var lines = split (text, "\n");
+println$ "Got Lines";
+begin 
+  var ls = lines;
+  for i in 1..4 do
+    match ls with 
+    | h ! t => println$ h; ls = t;
+    | _ => ;
+    endmatch;
+  done
+end
+
+var vlines = varray lines;
+println$ "Varray Lines";
+begin 
+  for i in 1..4 do
+    println$ vlines.i;
+  done
+end
+
+ 
+var ww = 800;
+var wd = 800;
+
+proc draw_box (win:window_t) (c:colour_t) (x:int, y:int,  w:int, d:int) {
+  win.add$ mk_drawable draw_line (c,x,y,x+w,y); //h top
+  win.add$ mk_drawable draw_line (c,x,y+d,x+w,y+d);//h bot
+  win.add$ mk_drawable draw_line (c,x,y,x,y+d);//v left
+  win.add$ mk_drawable draw_line (c,x+w,y,x+w,y+d); //v right
+}
+
+
+spawn_fthread {
+  //create a window manager
+  var wm = window_manager();
+
+  // create a window
+  var w1 : window_t = create_resizable_window("MidenVM Visual Emulator",100,100,ww,wd);
+  w1.add$ mk_drawable FlxGui::clear lightgrey;
+  w1.draw_box black (10,20,200, wd - 40);
+  w1.draw_box black (240,20,100, wd - 40);
+  w1.update();
+  w1.show();
+  var max_lines = (wd - 40) / lskip;
+  var first_line = 1;
+  // Unfortunately we have to use recursive for loop
+  // because otherwise the drawable binds to the top level frame
+  // and the ypos is the last one used, since the binding is by address
+  // not value
+  rfor idx in 0..max_lines - 1 do
+    var lno = first_line + idx - 1;
+    var line = (vlines.lno + "  ").[to 20];
+    var ypos = 20 + (idx + 1) * lskip;
+    w1.add$ mk_drawable FlxGui::write (25,  ypos, font, black, line);
+  done
+
+  var stack = varray (100,200,300,400);
+  rfor idx in 0..stack.len.int - 1 do
+    var lno = first_line + idx - 1;
+    var line = (stack.lno.str + "  ").[to 20];
+    var ypos = 20 + (idx + 1) * lskip;
+    w1.add$ mk_drawable FlxGui::write (260,  ypos, font, black, line);
+  done
+
+  var iresp,oresp = #mk_ioschannel_pair[button_action_t];
+
+  var ich1,b1 = #mk_ioschannel_pair[event_t];
+  mkbutton(w1,700,10,"Step",font, oresp, ich1);
+
+  var ich2,b2 = #mk_ioschannel_pair[event_t];
+  mkbutton(w1,750,10,"Reset",font, oresp, ich2);
+
+  var buttons=varray((butout=b1, butresp=iresp), (butout=b2,butresp=iresp));
+
+  // create a window controller for our window
+  var event_handler = ehandler w1 buttons;
+  var wc1 = window_controller (w1, event_handler);
+
+  // attach controller to window manager
+  var wno = wm.add_window wc1;
+
+  // USE variable wno or Felix will elide the call!
+  println$ "Window number " + wno.str;
+
+  var runflag = false;
+  wm.run_with_timeout 60.0;
+  println$ "gui_06 quitting";
+};
+
+
+
+

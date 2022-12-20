@@ -1,3 +1,6 @@
 [submodule "miden-vm"]
 	path = miden-vm
 	url = git@github.com:starkoracles/miden-vm.git
+[submodule "felix"]
+	path = felix
+	url = git@github.com:felix-lang/felix.git

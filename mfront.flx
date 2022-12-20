@@ -2,6 +2,7 @@ include "std/control/chips";
 include "./mfront/lib/mfront_lexer";
 include "./mfront/lib/mfront_symtab";
 include "./mfront/lib/mfront_expr";
+include "./mfront/lib/miden_opcodes";
 
 chip loader(filename: string, fail:string->0) 
   connector io
@@ -82,12 +83,15 @@ chip ehandler
 
 
 class stmt_parser {
-
+  fun isinteger(x:string) {
+    for ch in x 
+      if not isdigit ch return false;
+    return true;
+  }
+    
   proc checkint (fail: string->0) (x:string) {
-    for ch in x do
-      if not isdigit(ch) perform
-        fail("GOTO target must be integer, got " + x);
-    done
+    if not isinteger(x) perform
+      fail("GOTO target must be integer, got " + x);
   }
 
   variant ifparity_t = 
@@ -157,13 +161,13 @@ class stmt_parser {
           if switch_depth > 0 perform fail("Nested switch not supported");
           ++switch_depth; 
           prln$ "push.0 # begin switch  with PC = 0";
-          prln$ "pop.mem."+ pc_address.str + " # PC";
+          prln$ "mem_store."+ pc_address.str + " # PC";
           prln$ "push.1 # make loop start";
           prln$ "while.true # begin the SWITCH";
-          prln$ "push.mem."+pc_address.str + " # load PC";
-          prln$ "u32wrapped_add.1      # increment by 1";
+          prln$ "mem_load."+pc_address.str + " # load PC";
+          prln$ "u32wrapping_add.1      # increment by 1";
           prln$ "dup                   # keep on top of stack for comparisons";
-          prln$ "pop.mem."+pc_address.str + " # save PC";
+          prln$ "mem_store."+pc_address.str + " # save PC";
           prln$ "u32checked_eq."+h+ " # check if PC is forcase 1";
           prln$ "if.true # start code for this case";
 
@@ -175,7 +179,7 @@ class stmt_parser {
             max_lab = labval, counter;
           prln$ "# GOTO " + h;
           prln$ "push."+(h.int - 1).str +" # jump address minus 1"; 
-          prln$ "pop.mem." + pc_address.str + " # set PC to " + h;
+          prln$ "mem_store." + pc_address.str + " # set PC to " + h;
           prln$ "# -------";
 
         elif h == "LABEL" do
@@ -192,7 +196,7 @@ class stmt_parser {
           ++switch_counter; // count the number of 'end' we need at the switch end
         elif h == "BREAK" do
           prln$ "push.0xFFFFFFFF # BREAK";
-          prln$ "pop.mem."+pc_address.str + "# ->PC";
+          prln$ "mem_store."+pc_address.str + "# ->PC";
 
         elif h == "ENDSWITCH" do
           if switch_depth == 0 perform fail "End switch outside switch";
@@ -207,8 +211,9 @@ class stmt_parser {
           done
           // termination is now PC >= end case
           // catches break too because it's now 0xFFFF_FFFF
-          prln$ "push.mem."+pc_address.str + " #load PC";
-          prln$ "u32unchecked_le." + end_case.str; 
+          prln$ "mem_load."+pc_address.str + " #load PC";
+          prln$ "push." + end_case.str;
+          prln$ "u32unchecked_lte"; 
           prln$ "end #while loop";
           prln$ "# SWITCH EXIT";
 
@@ -217,26 +222,26 @@ class stmt_parser {
           checkint fail h;
           var target = h.int;
           next_instr_must_be_label = true;
-          prln$ "push.mem."+pc_address.str+ " # get PC";
-          prln$ "push.mem."+sp_address.str+ " # get SP";
-          prln$ "u32unchecked_sub.1       # SP--";
+          prln$ "mem_load."+pc_address.str+ " # get PC";
+          prln$ "mem_load."+sp_address.str+ " # get SP";
+          prln$ "u32wrapping_sub.1       # SP--";
           prln$ "dup";
-          prln$ "pop.mem"+sp_address.str+" # save SP";
-          prln$ "pop.mem                 # store PC at SP";
+          prln$ "mem_store."+sp_address.str+" # save SP";
+          prln$ "mem_store                 # store PC at SP";
           prln$ "push."+(target - 1).str +" # CALL target - 1";
-          prln$ "pop.mem."+pc_address.str+" # set PC to target - 1";
+          prln$ "mem_store."+pc_address.str+" # set PC to target - 1";
 
         elif h=="RETURN" do
           // NOTE: the return address is that of the block containing
           // the original call instruction, but the loop head will
           // increment it to the next block allowing the caller to continue
           // after the call instruction
-          prln$ "push.mem."+sp_address.str+ " # get SP";
+          prln$ "mem_load."+sp_address.str+ " # get SP";
           prln$ "dup";
-          prln$ "u32unchecked_add.1 # pop stack";
-          prln$ "pop.mem."+sp_address+" # save SP"; 
-          prln$ "push.mem # get return address";
-          prln$ "pop.mem."+pc_address.str+" # set PC";
+          prln$ "u32wrapping_add.1 # pop stack";
+          prln$ "mem_store."+sp_address+" # save SP"; 
+          prln$ "mem_load # get return address";
+          prln$ "mem_store."+pc_address.str+" # set PC";
 
         // eval
         elif h == "eval" do
@@ -390,11 +395,39 @@ class stmt_parser {
               endmatch; // ifelse
             endmatch; // else 
           endmatch; // leading } symbol
+        elif h == "else" do
+          prln$ "else # Miden";
+        elif h == "end" do
+          prln$ "end # Miden";
+        elif h == "push" do
+          // up to 16 elements allowed
+          var pushcode = cat "" tokens;
+          if MidenOpcodes::isvalidpush pushcode do
+            prln$ pushcode + " # validated";
+          else 
+            prln$ pushcode + " # INVALID PUSH";
+          done
         else
-          prln$ cat "" tokens; 
-        done
-       
+          var rtoks = unbox tokens.rev;
+          match rtoks with
+          | Cons (h,t) =>
+            if isinteger(h) do
+              rtoks = Cons("$",t);
+            done
+          | _ => ;
+          endmatch;
+//println$ "opkey: '" + opkey+"'";
+          var opk = cat "" tokens;
+          var opkey = cat "" rtoks.rev.unbox;
+          if opkey.MidenOpcodes::isopcode do 
+            prln$ opk + " # validated opcode";
+          else
+            prln$ opk + " # OPCODE NOT VALIDATED";
+          done
+        done // leading token chain check
+
       | _ => ;
+       
       endmatch;
     done
   }

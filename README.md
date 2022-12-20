@@ -1,5 +1,5 @@
 # starkvm-compiler
-A compiler from Rust to MidenVM ISA.
+Tools for  MidenVM ISA.
 
 **It is important to note this code is unaudited and is NOT ready for production use.** 
 

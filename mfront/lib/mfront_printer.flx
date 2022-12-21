@@ -50,7 +50,8 @@ chip printer  (line_count: &<int)
         startswith line "if.true" or 
         startswith line "else" or 
         startswith line "begin" or 
-        startswith line "repeat" 
+        startswith line "repeat" or 
+        startswith line "proc" 
       perform 
         ++indent; 
       println$ outline;

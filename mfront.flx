@@ -354,7 +354,8 @@ proc run(filename:string) {
   circuit 
     connect source.out, counter.inp
     connect counter.out, comment_stripper.inp
-    connect comment_stripper.out, stmt.inp
+    connect comment_stripper.out, instruction_splitter.inp
+    connect instruction_splitter.out, stmt.inp
     connect stmt.out, printout.inp
     wire ein to ehandler.inp
   endcircuit

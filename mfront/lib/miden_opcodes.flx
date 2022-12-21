@@ -4,37 +4,17 @@ class MidenOpcodes {
   // u32 is 32 bits = 4 bytes = 8 hex digits
   // field element is 16 hex digits
   // machine word is 64 hex digits
-  // 
-  // NOTE: the parser has to recognize control instructions
-  // if.true, while.true, repeat.$, end, else
-  // these aren't listed at the moment
-  //
-  // the push instruction is a weirdo
-  // it has a variable number of arguments up to 16
-  // not listed at the moment
-  //
-  // proc.$, syscall, exec, call not listed
-  // library operations not listed
-  //
-  // exp is a bit weird .. not listed 
-  //
-  // conditional drops are weird .. not listed
-  //
-  //  ("cdrop"                   ,2
-  //  ("cdropw"                  ,4
   //
   //  ordinary swaps and move things are MISCODED
   //  as 0 pop 0 push ... should really be 16,16
-  // 
   //  similarly dup.n which is really n, n + 1
   //  and adv_push.$
-  //
-  //  adv_pipe                ,2
-  // looks ordinary ...
-
+  //  These will need special handing in the emulator
 
 
   //  OPCODE                cycles, pop, push
+  //  codes with .$ at the end accept an integer literal
+
   var opcodes = 
     ("assert"                 ,1,1,0),
     ("assertz"                ,2,1,0),
@@ -51,6 +31,8 @@ class MidenOpcodes {
     ("neg"                    ,1,1,1),
     ("inv"                    ,1,1,1),
     ("pow2"                   ,16,1,1),
+    ("exp"                    ,73,2,1),
+    ("exp.$"                  ,73,1,1),
     ("not"                    ,1,1,1),
     ("and"                    ,1,2,1),
     ("or"                     ,1,2,1),
@@ -181,6 +163,7 @@ class MidenOpcodes {
     ("locaddr.$"               ,2,0,1),
 
     ("adv_loadw"               ,1,0,4),
+    ("adv_pipe"                ,2,13,13),
 
     ("mem_load"                ,1,1,1),
     ("mem_load.$"              ,2,0,1),
@@ -205,6 +188,15 @@ class MidenOpcodes {
     ("mtree_cwm"               ,12,10,12)
   ;
 
+  // check for integer literals miden allows WITHOUT any bounds checks
+  fun ishexintlit(x:string) => x in RE2 "\\d+";
+  fun isdecintlit(x:string) => x in RE2 "0x[[:xdigit:]]+";
+  fun isintlit(x:string) => x.ishexintlit or x.isdecintlit;
+
+  // check for a miden name
+  fun isname(x:string) => x in RE2 "\\w+"; 
+  fun isqualifiedname(x:string) => x in RE2 "\\w+(::\\w+)*"; 
+
   fun isopcode(x:string) {
     for v in opcodes 
       if v.0 == x return true;
@@ -217,8 +209,60 @@ class MidenOpcodes {
 
   // cdrop consumes either 1 element or 2 depending on the TOS
   // cdropw consumes either 1 element or 5 depending on the TOS
-  fun iscond(x:string) {
+  fun iscdrop(x:string) {
     return x in ("cdrop", "cdropw");
   }
 
+  fun isctrl(x:string) {
+    return x in ("if.true", "while.true", "else", "end", "begin");
+  }
+
+  fun isvalid1op (x:string) =>
+    x in ("end","begin","else","cdrop","cdropw") or
+    x.isopcode
+  ; 
+
+  fun isvalid2op (a:string, b:string) {
+    match a,b with
+    | "if", "true" => return true;
+    | "while", "true" => return true;
+    | "repeat", x => return x.isintlit;
+    | "exec", x => return x.isqualifiedname;
+    | "call", x => return x.isqualifiedname;
+    | "syscall", x => return x.isqualifiedname;
+    | op,arg =>
+      return arg.isintlit and (op+".$").isopcode;
+    endmatch;
+  }
+
+  fun isvalid3op (a:string, b:string,c:string) {
+    match a,b,c with
+    | "proc", name,nlocals => return name.isname and nlocals.isintlit;
+    | _ => return false;
+    endmatch;
+  }
+
+ 
+  fun isvalidopcode (tokens: list[string]) {
+    // get rid of the deviant push opcode
+    if (cat "" tokens).isvalidpush return true;
+
+    // all other ops have 1,2,or 3 parts separated by "."
+    match tokens with
+    | ([op]) => return isvalid1op(op);
+    | ([op,d,a]) =>
+       if d == "." do
+         return isvalid2op(op,a);
+       else 
+         return false;
+       done
+    | ([op,d1,a,d2,b]) =>
+       if d1 == "." and d2 == "." do
+         return isvalid3op(op,a,b);
+       else 
+         return false;
+       done
+    | _ => return false;
+    endmatch;
+  }
 }

@@ -7,11 +7,7 @@ include "./mfront/lib/mfront_printer";
 include "./mfront/lib/mfront_front";
 
 class stmt_parser {
-  fun isinteger(x:string) {
-    for ch in x 
-      if not isdigit ch return false;
-    return true;
-  }
+  fun isinteger(x:string) => x.MidenOpcodes::isintlit;
     
   proc checkint (fail: string->0) (x:string) {
     if not isinteger(x) perform
@@ -323,30 +319,13 @@ class stmt_parser {
           prln$ "else # Miden";
         elif h == "end" do
           prln$ "end # Miden";
-        elif h == "push" do
-          // up to 16 elements allowed
-          var pushcode = cat "" tokens;
-          if MidenOpcodes::isvalidpush pushcode do
-            prln$ pushcode + " # validated";
-          else 
-            prln$ pushcode + " # INVALID PUSH";
-          done
         else
-          var rtoks = unbox tokens.rev;
-          match rtoks with
-          | Cons (h,t) =>
-            if isinteger(h) do
-              rtoks = Cons("$",t);
-            done
-          | _ => ;
-          endmatch;
-//println$ "opkey: '" + opkey+"'";
-          var opk = cat "" tokens;
-          var opkey = cat "" rtoks.rev.unbox;
-          if opkey.MidenOpcodes::isopcode do 
-            prln$ opk + " # validated opcode";
+          var tks = Cons (h,t);
+          var ptks = cat "" tks;
+          if tks.MidenOpcodes::isvalidopcode do 
+            prln$ ptks + " # validated opcode";
           else
-            prln$ opk + " # OPCODE NOT VALIDATED";
+            prln$ ptks + " # OPCODE NOT VALIDATED";
           done
         done // leading token chain check
 

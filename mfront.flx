@@ -88,8 +88,10 @@ class stmt_parser {
           prln$ "u32wrapping_add.1      # increment by 1";
           prln$ "dup                   # keep on top of stack for comparisons";
           prln$ "mem_store."+pc_address.str + " # save PC";
+          prln$ "dup";
           prln$ "u32checked_eq.1 # check if PC is forcase 1";
           prln$ "if.true # start code for this case";
+          prln$ "drop # remove PC from stack"; 
 
         elif h in ("GOTO", "TAILCALL") do
           advance;
@@ -111,9 +113,12 @@ class stmt_parser {
           ++label_counter; 
           prln$ "# LABEL " + h;
           prln$ "else # end case " + (switch_counter - 1).str;
+          prln$ "dup # keep PC on stack in case check fails";
           prln$ "u32checked_eq."+h+ " # check if PC is for this case";
           prln$ "if.true # start code for this case";
+          prln$ "drop # remove PC from stack"; 
           ++switch_counter; // count the number of 'end' we need at the switch end
+
         elif h == "BREAK" do
           prln$ "push.0xFFFFFFFF # BREAK";
           prln$ "mem_store."+pc_address.str + "# ->PC";
@@ -131,9 +136,8 @@ class stmt_parser {
           done
           // termination is now PC >= end case
           // catches break too because it's now 0xFFFF_FFFF
-          prln$ "mem_load."+pc_address.str + " #load PC";
-          prln$ "push." + end_case.str;
-          prln$ "u32unchecked_lte"; 
+          prln$ "push." + end_case.str + " PC is still on the stack";
+          prln$ "u32unchecked_lte # condition for continuation of loop"; 
           prln$ "end #while loop";
           prln$ "# SWITCH EXIT";
 

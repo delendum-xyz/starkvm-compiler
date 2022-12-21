@@ -1,0 +1,51 @@
+
+chip loader(filename: string, fail:string->0) 
+  connector io
+    pin out : %> string
+{
+  var f = load(filename);
+  if f == "" perform 
+    throw_continuation { fail$ "Missing input file " + filename; };
+  var lines = split(f,char "\n");
+  for line in lines do
+    write (io.out, line);
+  done
+}
+
+chip line_counter (counter: &int)  
+  connector io
+    pin inp: %<string
+    pin out: %>string
+{
+  while true do
+   var line = read io.inp;
+   post_incr counter;
+   write (io.out, line);
+  done
+}
+
+chip comment_stripper
+  connector io
+    pin inp: %< string
+    pin out: %> string
+{
+  while true do
+    var s = read(io.inp);
+    for (var i=0; i< s.len.int; ++i;) 
+      if s.[i] == char "#" goto endline;
+  endline:>
+    write (io.out, s.[0 .. i - 1]);
+  done
+}
+
+// Error handling chip.
+chip ehandler  
+  connector io
+    pin inp : %< string
+{
+  var e = read io.inp;
+  println$ "[ehandler]: " + e;
+  System::exit(1);
+}
+
+

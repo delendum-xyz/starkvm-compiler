@@ -210,7 +210,15 @@ class MidenOpcodes {
       if v.0 == x return true;
     return false;
   }
+
   fun isvalidpush (x:string) {
     return x in RE2 "push(\\.(\\d|0x[[:xdigit:]]+)){1,16}";
   }
+
+  // cdrop consumes either 1 element or 2 depending on the TOS
+  // cdropw consumes either 1 element or 5 depending on the TOS
+  fun iscond(x:string) {
+    return x in ("cdrop", "cdropw");
+  }
+
 }

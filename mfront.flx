@@ -3,84 +3,8 @@ include "./mfront/lib/mfront_lexer";
 include "./mfront/lib/mfront_symtab";
 include "./mfront/lib/mfront_expr";
 include "./mfront/lib/miden_opcodes";
-
-chip loader(filename: string, fail:string->0) 
-  connector io
-    pin out : %> string
-{
-  var f = load(filename);
-  if f == "" perform 
-    throw_continuation { fail$ "Missing input file " + filename; };
-  var lines = split(f,char "\n");
-  for line in lines do
-    write (io.out, line);
-  done
-}
-
-chip line_counter (counter: &int)  
-  connector io
-    pin inp: %<string
-    pin out: %>string
-{
-  while true do
-   var line = read io.inp;
-   post_incr counter;
-   write (io.out, line);
-  done
-}
-
-chip comment_stripper
-  connector io
-    pin inp: %< string
-    pin out: %> string
-{
-  while true do
-    var s = read(io.inp);
-    for (var i=0; i< s.len.int; ++i;) 
-      if s.[i] == char "#" goto endline;
-  endline:>
-    write (io.out, s.[0 .. i - 1]);
-  done
-}
-
-// Error handling chip.
-chip ehandler  
-  connector io
-    pin inp : %< string
-{
-  var e = read io.inp;
-  println$ "[ehandler]: " + e;
-  System::exit(1);
-}
-
-// ISSUE: what should nested switches do??
-//
-// My brain is saying a SWITCH introduces a scope
-// so actually it is like a C block { ... }
-//
-// This means it has local variables, and it means
-// from inside a SWITCH we can jump locally to any label
-// inside the switch, OR to any label in an ancestor.
-// But you cannot jump from outside to inside.
-//
-// The semantics at the moment don't support nesting
-// because "SWITCH" sets the global PC to 1.
-//
-// There are two choices: using a global PC and a stack for
-// local variables matches how C's von Neumann machine works.
-// This means the labels in a nested switch must be distinct
-// from the ones in an enclosing switch, so that labels
-// are globally unique (well, at least within a procedure).
-//
-// OTOH, if we use a separate PC for a nested switch,
-// we CANNOT jump to an arbitrary external label 
-// we are FORCED to exit the switch by "falling through"
-//
-// This makes the SWITCH behave more like a "basic block":
-// ONE entry point and ONE exit only.
-//
-// In fact, this can 
-
+include "./mfront/lib/mfront_printer";
+include "./mfront/lib/mfront_front";
 
 class stmt_parser {
   fun isinteger(x:string) {
@@ -432,55 +356,6 @@ class stmt_parser {
     done
   }
 }
-
-// NOTE: tabs comments to column 35
-chip printer  (line_count: &<int)
-  connector io
-    pin inp : %< string
-{
-  fun align_comments(line:string):string {
-    match find(line, char "#") with
-    | None => var out = line;
-    | Some k =>
-      var l = line.[to k];
-      var r = line.[k + 1 to];
-      if l.len.int > 32 do
-        l= l+ " ";
-      else
-        l = (l.rstrip + " " * 35).[0 to 35];
-      done
-      if r.len.int > 0 do
-        var outcmt = (r.strip + " " *40).[to 40];
-        out = l + "# " + outcmt + f":%4d" (*line_count);
-      else
-        out = l;
-      done
-    endmatch;
-    return out;
-  }
-
-  var x = "";
-  var indent = 0;
-
-  while true do
-    var s = read io.inp;
-    x += s;
-    var xs = split(x,"\n");
-    var n = xs.len.int - 1;
-    for(var i = 0; i<n; ++i;) do
-      var line = head xs;
-      xs = tail xs;
-      if startswith line "end" or startswith line "else" perform --indent;
-      var indented_line = "  " * indent + line;
-      var outline = align_comments indented_line;
-      if startswith line "while.true" or startswith line "if.true" or startswith line "else" perform ++indent; 
-      println$ outline;
-    done
-    x = head xs;
-  done
-}
-
-
 proc run(filename:string) {
   var line_count = 0;
   var ein,eout = mk_ioschannel_pair[string]();

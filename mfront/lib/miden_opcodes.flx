@@ -230,6 +230,7 @@ class MidenOpcodes {
     | "exec", x => return x.isqualifiedname;
     | "call", x => return x.isqualifiedname;
     | "syscall", x => return x.isqualifiedname;
+    | "proc", x => return x.isname;
     | op,arg =>
       return arg.isintlit and (op+".$").isopcode;
     endmatch;

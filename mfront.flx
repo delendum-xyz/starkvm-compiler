@@ -136,7 +136,7 @@ class stmt_parser {
           done
           // termination is now PC >= end case
           // catches break too because it's now 0xFFFF_FFFF
-          prln$ "push." + end_case.str + " PC is still on the stack";
+          prln$ "push." + end_case.str + " # PC is still on the stack";
           prln$ "u32unchecked_lte # condition for continuation of loop"; 
           prln$ "end #while loop";
           prln$ "# SWITCH EXIT";

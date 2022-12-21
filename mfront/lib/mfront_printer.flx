@@ -36,10 +36,23 @@ chip printer  (line_count: &<int)
     for(var i = 0; i<n; ++i;) do
       var line = head xs;
       xs = tail xs;
-      if startswith line "end" or startswith line "else" perform --indent;
+      if startswith line "end" or startswith line "else" do 
+        if indent > 0 do
+          --indent;
+        else
+          println$ "# INDENTATION ERROR";
+        done 
+      done
       var indented_line = "  " * indent + line;
       var outline = align_comments indented_line;
-      if startswith line "while.true" or startswith line "if.true" or startswith line "else" perform ++indent; 
+      if 
+        startswith line "while.true" or 
+        startswith line "if.true" or 
+        startswith line "else" or 
+        startswith line "begin" or 
+        startswith line "repeat" 
+      perform 
+        ++indent; 
       println$ outline;
     done
     x = head xs;

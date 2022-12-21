@@ -343,11 +343,9 @@ proc run(filename:string) {
   var line_count = 0;
   var ein,eout = mk_ioschannel_pair[string]();
   proc ewriter (e: string) {
-    while true do
-      write (eout, "fail["+ line_count.str + "]: " + e); 
-    done
+    write (eout, "fail["+ line_count.str + "]: " + e); 
   }
-  proc failproc (e:string) { throw_continuation { ewriter e; }; };
+  proc failproc (e:string) { throw_continuation {  ewriter e; }; };
 
   device source = loader (filename, failproc);
   device stmt = stmt_parser::stmt failproc;

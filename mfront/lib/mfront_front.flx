@@ -1,4 +1,6 @@
+// Front end utilities
 
+// Load a file and emit its lines.
 chip loader(filename: string, fail:string->0) 
   connector io
     pin out : %> string
@@ -12,6 +14,7 @@ chip loader(filename: string, fail:string->0)
   done
 }
 
+// Copy lines, incrementing line counter
 chip line_counter (counter: &int)  
   connector io
     pin inp: %<string
@@ -24,6 +27,7 @@ chip line_counter (counter: &int)
   done
 }
 
+// Throw out comments
 chip comment_stripper
   connector io
     pin inp: %< string
@@ -38,7 +42,22 @@ chip comment_stripper
   done
 }
 
+// split a line of space separated instructions 
+// into single instructions
+chip instruction_splitter 
+  connector io
+    pin inp: %< string
+    pin out: %> string
+{
+  while true do
+    var x = read io.inp;
+    var instructions = respectful_split x;
+    for instruction in instructions perform write(io.out, instruction);
+  done
+}
+
 // Error handling chip.
+// Print error to stdout then terminate process
 chip ehandler  
   connector io
     pin inp : %< string

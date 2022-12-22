@@ -52,7 +52,15 @@ chip instruction_splitter
   while true do
     var x = read io.inp;
     var instructions = respectful_split x;
-    for instruction in instructions perform write(io.out, instruction);
+    match instructions with
+    | Cons (h,t) =>
+      if h in ("LABEL", "CALL", "GOTO", "TAILCALL", "eval","if","let") do
+        write(io.out, cat " " instructions);
+      else 
+        for instruction in instructions perform write(io.out, instruction);
+      done
+    | _ => ;
+    endmatch;
   done
 }
 
@@ -67,4 +75,36 @@ chip ehandler
   System::exit(1);
 }
 
-
+// pass 1 consumes all the lines and accumulates label map
+// index in varray will be label number - 2
+// array records label and line number pair
+// duplicate label writes error on error channel
+chip label_scanner (labels: varray[(string * int)]) 
+  connector io
+    pin inp: %< string
+    pin err: %> string
+{
+  var counter = 0;
+  while true do
+    ++counter;
+    var line = read io.inp;
+    var tokens = respectful_split line;
+    match tokens with
+    | ["LABEL",x] =>
+      if  x.MidenOpcodes::isname  do
+        scan: for i in 0 .. labels.len.int - 1 do
+          var lname, lno = labels.i;
+          if x == lname do
+            write (io.err, "Duplicate label " + x + " on line " + counter.str + ", previous definition line " + lno.str);
+          else
+            labels.push_back (x, counter);
+            break scan;
+          done
+        done
+      else 
+        write (io.err, "Malformed LABEL instruction on line " + counter.str + ":\n" + line);
+      done
+    | _ => ;
+    endmatch;
+  done
+}

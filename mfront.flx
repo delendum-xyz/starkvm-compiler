@@ -183,10 +183,13 @@ class stmt_parser {
             mut = true;
             advance;
           done
-          var name = h; // check it's an identifier!
+          if not h.MidenOpcodes::isname do
+            fail("Variable declaration requires variable name got " + h);
+          done
+          var name = h; 
           advance;
           if h != "=" do
-            fail("Variable decl requires = symbol");
+            fail("Variable "+name+" decl requires = symbol got " + h);
           done
           add fail &symtab name mut "u32";
           //prln$ "# Added variable '" + name +"' to symbol table";

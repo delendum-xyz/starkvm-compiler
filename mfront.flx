@@ -121,6 +121,7 @@ class stmt_parser {
 
         elif h == "BREAK" do
           prln$ "push.0xFFFFFFFF # BREAK";
+          prln$ "dup # keep PC on stack";
           prln$ "mem_store."+pc_address.str + "# ->PC";
 
         elif h == "ENDSWITCH" do

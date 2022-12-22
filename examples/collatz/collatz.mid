@@ -1,20 +1,24 @@
 # collatz iterative implementation - n
-let mut n = 1234
-let mut counter = 0
-SWITCH
-LABEL NEXT
-    if n == 1 {
-        BREAK
-    }
-    if n % 2 == 0 {
-        n = n / 2
-        counter = counter + 1
-        GOTO NEXT
-    } 
-    if n % 2 == 1 {
-        n = 3*n + 1
-        counter = counter + 1
-        GOTO NEXT
-    }
-ENDSWITCH
-eval counter
+begin
+  let mut n = 1234
+  let mut counter = 0
+  SWITCH
+  LABEL NEXT
+      if n == 1 {
+          BREAK
+      }
+  LABEL X
+      if n % 2 == 0 {
+          n = n / 2
+          counter = counter + 1
+          GOTO NEXT
+      } 
+  LABEL Y
+      if n % 2 == 1 {
+          n = 3*n + 1
+          counter = counter + 1
+          GOTO NEXT
+      }
+  ENDSWITCH
+  eval counter
+end

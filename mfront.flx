@@ -199,8 +199,6 @@ class stmt_parser {
           pr$ expr_emit::postfix fail &symtab e2 ;
           prln$ "loc_store." + get_address fail &symtab name +"# init " + name;
 
-          // assignment (requires "assign" binder)
-
         elif #lookahead == "=" do
           prln$ " # " + line;
           name = h;
@@ -211,7 +209,7 @@ class stmt_parser {
           if not sym.mut do
             fail("Write to immutable variable " + name);
           done
-          prln$ "loc_load." + sym.loc.str + "# " + name + "<-";
+          prln$ "loc_store." + sym.loc.str + "# " + name + "<-";
 
         elif h == "while" do
           chainmatch t with
@@ -342,26 +340,48 @@ class stmt_parser {
     done
   }
 }
-proc run(filename:string) {
-  var line_count = 0;
+proc doit(filename:string) {
   var ein,eout = mk_ioschannel_pair[string]();
   proc ewriter (e: string) {
     write (eout, "fail["+ line_count.str + "]: " + e); 
   }
   proc failproc (e:string) { throw_continuation {  ewriter e; }; };
 
+  var line_count = 0;
+  var labels = varray[string * int] 1000.size;
+  device lscanner = label_scanner failproc labels;
+  device lreplacer = label_replacer failproc labels;
+
   device source = loader (filename, failproc);
   device stmt = stmt_parser::stmt failproc;
   device counter = line_counter &line_count;
   device printout = printer &line_count;
-  circuit 
-    connect source.out, counter.inp
-    connect counter.out, comment_stripper.inp
-    connect comment_stripper.out, instruction_splitter.inp
-    connect instruction_splitter.out, stmt.inp
-    connect stmt.out, printout.inp
-    wire ein to ehandler.inp
-  endcircuit
+
+  run {
+    //println$ "RUNNING LABEL SCANNER";
+    circuit 
+      connect source.out, counter.inp
+      connect counter.out, comment_stripper.inp
+      connect lscanner.inp, comment_stripper.out
+    endcircuit
+  };
+
+  //println$ "Labels " + labels.str;
+  line_count = 0; // reset for pass 2
+
+  run {
+    //println$ "RUNNING MAIN PROCESS";
+    circuit 
+      connect source.out, counter.inp
+      connect counter.out, comment_stripper.inp
+      connect comment_stripper.out, instruction_splitter.inp
+      connect instruction_splitter.out, lreplacer.inp
+      connect lreplacer.out, stmt.inp
+      connect stmt.out, printout.inp
+      wire ein to ehandler.inp
+    endcircuit
+  };
+
 }
 
-run(System::argv 1);
+doit(System::argv 1);

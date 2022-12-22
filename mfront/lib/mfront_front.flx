@@ -53,13 +53,16 @@ chip instruction_splitter
     var x = read io.inp;
     var instructions = respectful_split x;
     match instructions with
-    | Cons (h,t) =>
-      if h in ("LABEL", "CALL", "GOTO", "TAILCALL", "eval","if","let") do
+    | Cons (h,  t)
+      when h in ("LABEL", "CALL", "GOTO", "TAILCALL", "eval","if","let") 
+      => 
         write(io.out, cat " " instructions);
-      else 
+    | Cons (h, Cons ("=",  t)) 
+      =>
+        write(io.out, cat " " instructions);
+    | _ 
+      => 
         for instruction in instructions perform write(io.out, instruction);
-      done
-    | _ => ;
     endmatch;
   done
 }
@@ -78,11 +81,10 @@ chip ehandler
 // pass 1 consumes all the lines and accumulates label map
 // index in varray will be label number - 2
 // array records label and line number pair
-// duplicate label writes error on error channel
-chip label_scanner (labels: varray[(string * int)]) 
+// duplicate label bombs 
+chip label_scanner (fail:string->0) (labels: varray[(string * int)]) 
   connector io
     pin inp: %< string
-    pin err: %> string
 {
   var counter = 0;
   while true do
@@ -92,19 +94,52 @@ chip label_scanner (labels: varray[(string * int)])
     match tokens with
     | ["LABEL",x] =>
       if  x.MidenOpcodes::isname  do
-        scan: for i in 0 .. labels.len.int - 1 do
+        for i in 0 .. labels.len.int - 1 do
           var lname, lno = labels.i;
           if x == lname do
-            write (io.err, "Duplicate label " + x + " on line " + counter.str + ", previous definition line " + lno.str);
-          else
-            labels.push_back (x, counter);
-            break scan;
-          done
-        done
+            fail ("Duplicate label " + x + " on line " + counter.str + ", previous definition line " + lno.str);
+          done 
+        done /* scan */
+        labels.push_back (x, counter);
       else 
-        write (io.err, "Malformed LABEL instruction on line " + counter.str + ":\n" + line);
+        fail( "Malformed LABEL instruction on line " + counter.str + ":\n" + line);
       done
     | _ => ;
     endmatch;
   done
+}
+
+chip label_replacer (fail:string->0) (labels: varray[string * int]) 
+  connector io
+    pin inp: %< string
+    pin out: %> string
+{
+  //println$ "RUNNING LABEL REPLACER labels = " + labels.str;
+  var counter = 0;
+  while true do
+    ++counter;
+    var line = read io.inp;
+    var tokens = respectful_split line;
+    match tokens with
+    | [op,x] when op in ("LABEL", "GOTO", "CALL", "TAILCALL") =>
+      if  x.MidenOpcodes::isname  do
+        for i in 0 .. labels.len.int - 1 do
+          var lname, lno = labels.i;
+          if x == lname do
+            var outline = op + " " + (i + 2).str;
+            //println$ "FIXED " + outline; 
+            write(io.out, outline );
+            goto found;
+          done 
+        done /* scan */
+        fail( "Undefined label '" + x + "' on line " + counter.str + ":\n" + line);
+      else 
+        fail( "Malformed instruction on line " + counter.str + ":\n" + line);
+      done
+    | _ => 
+      write (io.out, line);
+    endmatch;
+found:> ;
+  done
+
 }

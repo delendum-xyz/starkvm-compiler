@@ -1,0 +1,84 @@
+begin                                   # let mut n = 1234                        :   2
+    push.1234                          # 1234                                    :   2
+    loc_store.0                        # init n                                  :   2
+                                    # let mut counter = 0                     :   3
+    push.0                             # 0                                       :   3
+    loc_store.1                        # init counter                            :   3
+    push.0                             # begin switch  with PC = 0               :   4
+    mem_store.1000                     # PC                                      :   4
+    push.1                             # make loop start                         :   4
+    while.true                         # begin the SWITCH                        :   4
+    mem_load.1000                    # load PC                                 :   4
+    u32wrapping_add.1                # increment by 1                          :   4
+    dup                              # keep on top of stack for comparisons    :   4
+    mem_store.1000                   # save PC                                 :   4
+    dup
+    u32checked_eq.1                  # check if PC is forcase 1                :   4
+    if.true                          # start code for this case                :   4
+        drop                           # remove PC from stack                    :   4
+                                    # LABEL 2                                 :   5
+    else                             # end case 0                              :   5
+        dup                            # keep PC on stack in case check fails    :   5
+        u32checked_eq.2                # check if PC is for this case            :   5
+        if.true                        # start code for this case                :   5
+        drop                         # remove PC from stack                    :   5
+        loc_load.0                   # <-n                                     :   6
+        push.1                       # 1                                       :   6
+        u32checked_eq                # ==                                      :   6
+        if.true                      # Rust if                                 :   6
+            push.0xFFFFFFFF            # BREAK                                   :   7
+            mem_store.1000             # ->PC                                    :   7
+        end                          # Rust endif                              :   8
+        loc_load.0                   # <-n                                     :   9
+        push.2                       # 2                                       :   9
+        u32checked_mod               # %                                       :   9
+        push.0                       # 0                                       :   9
+        u32checked_eq                # ==                                      :   9
+        if.true                      # Rust if                                 :   9
+                                    # n = n / 2                               :  10
+            loc_load.0                 # <-n                                     :  10
+            push.2                     # 2                                       :  10
+            u32checked_div             # /                                       :  10
+            loc_store.0                # n<-                                     :  10
+                                    # counter = counter + 1                   :  11
+            loc_load.1                 # <-counter                               :  11
+            push.1                     # 1                                       :  11
+            u32checked_add             # +                                       :  11
+            loc_store.1                # counter<-                               :  11
+                                    # GOTO 2                                  :  12
+            push.1                     # jump address minus 1                    :  12
+            mem_store.1000             # set PC to 2                             :  12
+                                    # -------                                 :  12
+        end                          # Rust endif                              :  13
+        loc_load.0                   # <-n                                     :  14
+        push.2                       # 2                                       :  14
+        u32checked_mod               # %                                       :  14
+        push.1                       # 1                                       :  14
+        u32checked_eq                # ==                                      :  14
+        if.true                      # Rust if                                 :  14
+                                    # n = 3*n + 1                             :  15
+            push.3                     # 3                                       :  15
+            loc_load.0                 # <-n                                     :  15
+            u32checked_mul             # *                                       :  15
+            push.1                     # 1                                       :  15
+            u32checked_add             # +                                       :  15
+            loc_store.0                # n<-                                     :  15
+                                    # counter = counter + 1                   :  16
+            loc_load.1                 # <-counter                               :  16
+            push.1                     # 1                                       :  16
+            u32checked_add             # +                                       :  16
+            loc_store.1                # counter<-                               :  16
+                                    # GOTO 2                                  :  17
+            push.1                     # jump address minus 1                    :  17
+            mem_store.1000             # set PC to 2                             :  17
+                                    # -------                                 :  17
+        end                          # Rust endif                              :  18
+        end                            # switch case 2                           :  19
+    end                              # switch case 1                           :  19
+    push.2                           # PC is still on the stack                :  19
+    u32unchecked_lte                 # condition for continuation of loop      :  19
+    end                                # while loop                              :  19
+                                    # SWITCH EXIT                             :  19
+                                    # eval counter                            :  20
+    loc_load.1                         # <-counter                               :  20
+end

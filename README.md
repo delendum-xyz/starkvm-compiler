@@ -3,30 +3,30 @@ Compiler tooling for Stark-based zkVMs, with an initial focus on Miden
 
 **It is important to note this code is unaudited and is NOT ready for production use.** 
 
-# Motivation
+## Motivation
+
 The current zkp stack doesn't have excellent open-source tooling to develop general compute applications yet, we are here to change that!
 We believe that building an open-source compiler, which is optimized for StarkVM backends, will accelerate the adoption of performant zkp applications.
 
 A few examples:
+
 * std libraries for StarkVMs - As in regular VMs, not all functionality can be part of the core ISA the VM provides. A thriving ecosystem
 of apps will need a strong std layer that is maintainable and auditable.
 * Recursion - We aim for this compiler to power the first MIT licensed StarkVM that supports recursion. This will dramatically 
 reduce the cost of posting zkp proofs on-chain.
 
-# Technical vision
-While the exact approach haven't been decided yet, our intent is to target a layer that will enable reuse of as much 
-tooling is possible (LLVM / MLIR / WASM are being actively explored). The Design principles we would like to follow are:
-* Provide quick and tangible improvement to the community
-* Allow for reuse of software components - While there might be certain existing Rust programs that could not be easily 
-translated into Miden ISA, we would like to maintain the benefits of allowing developers to use their existing workflows and libraries. 
-Therefore, we aim to support the largest possible subset of Rust programs.
-* Be open to more frontends / backends - Staying closer to machine code opens the possibility of allowing other teams
-to focus on building frontends for languages they would like to use. Furthermore, we would like to design the compiler 
-stack in a way that could allow us to target existing and new backends (ISA) in the future. We believe there is 
-still a lot of innovation to be explored in designing a zkVMs and we are excited to support it. 
+## Technical vision
 
-# Build
-## Building Felix
+While the exact approach haven't been decided yet, our intent is to target a layer that will enable reuse of as much tooling is possible (LLVM / MLIR / WASM are being actively explored). The design principles we would like to follow are:
+
+* Provide quick and tangible improvement to the community
+* Allow for reuse of software components - While there might be certain existing Rust programs that could not be easily translated into Miden ISA, we would like to maintain the benefits of allowing developers to use their existing workflows and libraries. Therefore, we aim to support the largest possible subset of Rust programs.
+* Be open to more frontends / backends - Staying closer to machine code opens the possibility of allowing other teams to focus on building frontends for languages they would like to use. Furthermore, we would like to design the compiler stack in a way that could allow us to target existing and new backends (ISA) in the future. We believe there is still a lot of innovation to be explored in designing zkVMs and we are excited to support it. 
+
+## Build
+
+### Building Felix
+
 * You need Ocaml 14 and Python 3.x and a recent g++ or clang++
 * install SDL2, SDL2_image, SDL2_ttf
   * you can use brew on MacOS or apt-get or something on Linux
@@ -60,10 +60,10 @@ press any keys (but you can).
 Felix puts ALL artefacts in $HOME/.felix/cache unless you tell it otherwise.
 So you can run a script in a readonly directory from anywhere.
 
-## Example command
+### Example command
 `flx mfront.flx examples/basic/in.txt > examples/basic/out.masm`
 
-# Milestones (RFC)
+## Milestones (RFC)
 * Control flows and basic variables - if/else, loops, functions, local variables
 * Structs, pattern matching, arrays
 * Basic integration with core library

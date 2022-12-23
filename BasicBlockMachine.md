@@ -82,8 +82,8 @@ end
 
 # Procedures
 
-We support recursive dynamic procedure calls by adding an stacks in memory
-at fixed locations. On stack is needed per coroutine.
+We support recursive dynamic procedure calls by adding stacks in memory
+at fixed locations. One stack is needed per coroutine.
 
 A single SP register, a fixed memory location, holds pointer to
 the top of the stack. The stack grows towards lower addresses.
@@ -119,7 +119,7 @@ is expressed in Felix as follows:
      next:>
   }
 ``` 
-The current continuation of the called is the next label. It is stored at 
+The current continuation of the caller is the next label. It is stored at 
 the address of the save argument of the instruction. Then, the program counter
 stored at the adress specified by the target argument of the instruction 
 is loaded into the program counter, and the callee routine is resumed.
@@ -140,6 +140,4 @@ control flow enhancement. Subroutines are a special case of coroutines.
 Stack swapping coroutines are well known to all programmers: an application
 and the operating system are coroutines. Iterators are a special case
 of coroutines.
-
-
 

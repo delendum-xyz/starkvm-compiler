@@ -12,5 +12,8 @@ test:
 	flx mfront.flx examples/basic/nprime.masm
 	flx mfront.flx examples/basic/game-of-life-4x4.masm
 
+bb2m:
+	cd bb2m; cargo build
+	cd bb2m; cargo run "src/main.rs"
 
-
+.PHONY: bb2m

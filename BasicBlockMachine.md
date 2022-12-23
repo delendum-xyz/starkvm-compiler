@@ -42,7 +42,7 @@ It then executes an if/then/elif/else/end chain as follows:
 
 ```
 dup
-ifeq.<caseno>
+ifeq.<label>
   drop
   exec.atomic
   exec.atomic
@@ -50,12 +50,12 @@ ifeq.<caseno>
   switch<n> # as above
 else
   dup
-  ifeq.<caseno> 
+  ifeq.<label> 
     drop
     exec.atomic
     exec.atomic
     switch<n> # as above
-,,,
+```
 
 The chain is joined at the end, that is, control merges.
 Epilogue code then calculates if the computation should exit

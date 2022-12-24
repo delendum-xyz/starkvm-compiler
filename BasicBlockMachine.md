@@ -141,3 +141,52 @@ Stack swapping coroutines are well known to all programmers: an application
 and the operating system are coroutines. Iterators are a special case
 of coroutines.
 
+# Example: fibonacci
+```
+PROGRAM fibstart
+
+fibstart:
+                                     # let mut a = 1                           :   2
+  push.1                             # 1                                       :   2
+  loc_store.0                        # init a                                  :   2
+                                     # let mut b = 1                           :   3
+  push.1                             # 1                                       :   3
+  loc_store.1                        # init b                                  :   3
+                                     # let mut n = 10                          :   4
+  push.10                            # 10                                      :   4
+  loc_store.2                        # init n                                  :   4
+                                     # let mut tmp = 0                         :   5
+  Switch L1                          # unconditional goto L1
+
+L1:
+
+      loc_load.0                   # <-a                                     :   8
+      loc_store.3                  # tmp<-                                   :   8
+                                   # a = a + b                               :   9
+      loc_load.0                   # <-a                                     :   9
+      loc_load.1                   # <-b                                     :   9
+      u32checked_add               # +                                       :   9
+      loc_store.0                  # a<-                                     :   9
+                                   # b = tmp                                 :  10
+      loc_load.3                   # <-tmp                                   :  10
+      loc_store.1                  # b<-                                     :  10
+                                   # n = n -1                                :  11
+      loc_load.2                   # <-n                                     :  11
+      push.1                       # 1                                       :  11
+      u32checked_sub               # -                                       :  11
+      loc_store.2                  # n<-                                     :  11
+      loc_load.2                   # <-n                                     :  12
+      push.0                       # 0                                       :  12
+      u32checked_gt                # >
+  Switch L2,L1                     # if n > 0 goto L1 else L2
+
+L2:
+                                   # SWITCH EXIT                             :  15
+                                   # eval a                                  :  16
+loc_load.0                         # <-a                                     :  16
+                                   # eval b                                  :  17
+loc_load.1                         # <-b                                     :  17
+
+  Switch                           # HALT
+```
+

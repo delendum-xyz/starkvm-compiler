@@ -1,0 +1,124 @@
+include "./bblock_types";
+include "./bblock_labels";
+
+// Translate BBVM to MVM
+object emitter (d:label_map_t) (p:program_t) {
+  var n = p.blocks.len;
+  var revmap = varray[string] (n + 1,"");
+
+  // reverse telephone directory: index to label
+  match l,i in d perform unsafe_set (revmap, i.size, l);
+
+  var dummy = block_t (label_t "", Empty[atom_t], Return (return_t())); 
+
+  var blockmap = varray[block_t] (n + 1, dummy);
+  for block in p.blocks do 
+    var mix = d.get block.label.name;
+    match mix with
+    | Some idx => unsafe_set (blockmap, idx.size, block);
+    | _ => assert false;
+    endmatch;
+  done 
+
+  method fun emit_switch (x:switch_t) =>
+    match x.targets.len.int with
+    | 0 => " push.0 # HALT\n"
+    | 1 => 
+      let name = x.targets.head.name in
+      match d.get name with
+      | Some idx => " push."+ idx.str + " # " + name  + "\n"
+      | None => "IMPOSSIBLE"
+      endmatch
+    | 2 =>
+      let name0 = x.targets.head.name in
+      let name1 = x.targets.tail.head.name in
+      match d.get name0, d.get name1 with
+      | Some idx0, Some idx1 => " if.true push."+ idx1.str + " else push."+idx0.str " # conditional goto\n"
+      | _ => "IMPOSSIBLE"
+      endmatch
+    | n => " N CASE SWITCH NOT HANDLED YET\n"
+    endmatch
+  ;
+      
+
+  method fun emit_terminal (x:terminator_t) =>
+    match x with
+    | Switch y => emit_switch y
+    | t => t.str
+  ;
+
+
+  method fun emit_body (j:size) : string {
+     var block = blockmap.j; 
+     var bdy = "";
+     for atom in block.atoms for line in atom.masm perform bdy += line + "\n";
+     var t = block.term;
+     return bdy +  " # terminal\n" + emit_terminal block.term;
+  }
+
+  method fun emit_startup () {
+    var mix =  d.get p.proot.name;
+    match mix with
+    | Some idx =>
+      return 
+        " push."+idx.str + " # Entry Point\n" +
+        " push.1  # Make Loop start\n" +
+        " while.true # Begin loop\n"
+      ;
+    | None => System::exit(1);
+    endmatch;
+  }
+
+  // use for first case
+  method fun emit_first () => 
+    " # -------- CASE  1  = " + revmap.1uz + "----------------\n" + 
+    " dup # PC\n" +
+    " eq.1 # first case\n" +
+    " drop  # PC\n" +
+    emit_body 1.size
+  ;
+
+  // use for middle cases
+  method fun emit_case (j:size) =>
+    " # -------- CASE  " + j.str + " = " + revmap.(j.size) + "----------------\n" + 
+    " else\n" +
+    " dup # PC\n" +
+    " eq."+n.str+" # case " + j.str + "\n" +
+    " if.true \n" +
+    " drop  # PC\n" + 
+    emit_body j  
+  ;
+
+  // use for last_case
+  method fun emit_last () => 
+    " # -------- CASE  " + n.str + " = " + revmap.(n.size) + "----------------\n" + 
+    " else # \n" +
+    " drop # PC\n" +
+    emit_body n
+  ;
+
+  method fun emit_join () =>
+    " end" * n.int + " # join\n"
+  ;
+
+  method fun emit_endoff () =>
+    " dup # PC\n" +
+    " neq.0 # loop continues unless PC = 0\n"
+    " end # while loop\n" +
+    " drop # PC\n"
+  ;
+
+  method fun emit_program () {
+    var middle = "";
+    for i in 2 .. n.int - 1 perform middle = middle + emit_case i.size;
+    return 
+      #emit_startup +
+      #emit_first +
+      middle + 
+      #emit_last +
+      #emit_join +
+      #emit_endoff
+    ; 
+  }
+}
+

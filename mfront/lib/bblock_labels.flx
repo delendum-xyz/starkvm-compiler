@@ -1,0 +1,75 @@
+include "./bblock_types";
+
+typedef label_map_t = strdict[int];
+
+fun make_label_map (p:program_t) : label_map_t {
+  var d = strdict[int] ();
+  var counter = 1;
+  for block in p.blocks do
+    if block.label.name in d do
+      println$ "ERROR DUPLICATE LABEL " + block.label.name;
+      System::exit(1);
+    done
+    d.add block.label.name counter;
+    ++counter;
+  done
+  return d; 
+}
+
+// ----------------------------------------------
+// Label Closure enforcement
+proc validate_return(x: return_t) (d: label_map_t) {}
+
+proc validate_tailcall (x: tailcall_t) (d: label_map_t) {
+  if not x.target.name in d do
+    println$ "undefined label " + x.target.name;
+    System::exit(1);
+  done
+}
+
+proc validate_call (x: call_t) (d: label_map_t) {
+  if not x.target.name in d do
+    println$ "UNDEFINED LABEL " + x.target.name;
+    System::exit(1);
+  done
+  if not x.continuation.name in d do
+    println$ "UNDEFINED LABEL " + x.continuation.name;
+    System::exit(1);
+  done
+}
+
+proc validate_switch (x: switch_t) (d: label_map_t) {
+  for label in x.targets 
+    if not (label.name in d) do
+      println$ "UNDEFINED LABEL " + label.name;
+      System::exit(1);
+    done
+}
+
+proc validate_terminator (x:terminator_t) (d: label_map_t) 
+{
+  match x with
+  | Switch s => validate_switch s d;
+  | Call x => validate_call x d;
+  | TailCall x => validate_tailcall x d;
+  | Return x => validate_return x d;
+  endmatch;
+}
+
+proc validate_block (block:block_t) (d:label_map_t) {
+  if not block.label.name in d do
+    println$ "ERROR, block label " + block.label.name + " undefined????";
+    System::exit(1);
+  done 
+  validate_terminator block.term d;
+}
+
+proc validate_program (p:program_t) (d:label_map_t) {
+  if not p.proot.name in d do
+    println$ "ERROR, program root " + p.proot.name + " undefined";
+    System::exit(1);
+  done 
+  for block in p.blocks perform validate_block block d; 
+}
+
+

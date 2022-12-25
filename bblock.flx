@@ -1,162 +1,6 @@
-// basic block compiler
-// Translate basic block to MidenVM
-
-struct atom_t {
-  // any valid miden assembler is allowed here
-  // provided it is balanced syntactically
-  masm: list[string];
-}
-instance Str[atom_t] { fun str (x:atom_t) : string => cat "\n  " x.masm; }
-
-ctor atom_t (x:string) => atom_t ( list[string] x );
-
-struct label_t {
-  name: string;
-}
-instance Str[label_t] { fun str (x:label_t) => x.name; }
-
-struct switch_t {
-  targets: list[label_t];
-}
-instance Str[switch_t] { 
-  fun str (x:switch_t) => 
-    cat "," (map str of label_t x.targets)
-  ;
-}
-
-val phalt = Switch$ switch_t Empty[label_t];
-
-// unconditional goto
-fun ugoto (x:string) : terminator_t  => Switch (switch_t ([x.label_t]));
-
-// conditional goto (false case first)
-fun cgoto (x:string) (y:string) : terminator_t  => Switch (switch_t ([x.label_t,y.label_t]));
-
-struct call_t {
-  target: label_t;
-  continuation: label_t;
-}
-instance Str[call_t] { fun str (x: call_t) => x.target.str+"/"+x.continuation.str; }
-
-struct tailcall_t {
-  target: label_t;
-}
-instance Str[tailcall_t] { fun str (x: tailcall_t) => x.target.str; }
-
-struct return_t {}
-
-variant terminator_t = 
-| Switch of switch_t
-| Call of call_t
-| TailCall of  tailcall_t
-| Return of return_t
-; 
-instance Str[terminator_t] { 
-  fun str : terminator_t -> string =
-  | Switch x => "Switch " + x.str
-  | Call x => "Call " + x.str
-  | TailCall x => "TailCall " + x.str
-  | Return x => "Return"
-  ;
-}
-
-struct block_t {
-  label: label_t;           // Symbolic entry point
-  atoms: list[atom_t];     // sequentially exected codes 
-  term: terminator_t;
-}
-instance Str[block_t] {
-  fun str (x: block_t) =>
-    x.label.str + ":\n  " +
-    cat "\n  " (map str of atom_t x.atoms) +"\n  " +
-    x.term.str
-  ;
-}
-
-struct program_t {
-  proot: label_t;
-  blocks: list[block_t];
-}
-instance Str[program_t] { 
-  fun str (x:program_t) => 
-    "PROGRAM " + x.proot.str + "\n" +
-    cat "\n" (map str of block_t x.blocks)
-  ; 
-}
-
-typedef label_map_t = strdict[int];
-
-fun make_label_map (p:program_t) : label_map_t {
-  var d = strdict[int] ();
-  var counter = 1;
-  d.add p.proot.name counter;
-  ++counter;
-  for block in p.blocks do
-    if block.label.name in d do
-      println$ "ERROR DUPLICATE LABEL " + block.label.name;
-      System::exit(1);
-    done
-    d.add block.label.name counter;
-    ++counter;
-  done
-  return d; 
-}
-
-// ----------------------------------------------
-// Label Closure enforcement
-proc validate_return(x: return_t) (d: label_map_t) {}
-
-proc validate_tailcall (x: tailcall_t) (d: label_map_t) {
-  if not x.target.name in d do
-    println$ "undefined label " + x.target.name;
-    System::exit(1);
-  done
-}
-
-proc validate_call (x: call_t) (d: label_map_t) {
-  if not x.target.name in d do
-    println$ "UNDEFINED LABEL " + x.target.name;
-    System::exit(1);
-  done
-  if not x.continuation.name in d do
-    println$ "UNDEFINED LABEL " + x.continuation.name;
-    System::exit(1);
-  done
-}
-
-proc validate_switch (x: switch_t) (d: label_map_t) {
-  for label in x.targets 
-    if not (label.name in d) do
-      println$ "UNDEFINED LABEL " + label.name;
-      System::exit(1);
-    done
-}
-
-proc validate_terminator (x:terminator_t) (d: label_map_t) 
-{
-  match x with
-  | Switch s => validate_switch s d;
-  | Call x => validate_call x d;
-  | TailCall x => validate_tailcall x d;
-  | Return x => validate_return x d;
-  endmatch;
-}
-
-proc validate_block (block:block_t) (d:label_map_t) {
-  if not block.label.name in d do
-    println$ "ERROR, block label " + block.label.name + " undefined????";
-    System::exit(1);
-  done 
-  validate_terminator block.term d;
-}
-
-proc validate_program (p:program_t) (d:label_map_t) {
-  if not p.proot.name in d do
-    println$ "ERROR, program root " + p.proot.name + " undefined";
-    System::exit(1);
-  done 
-  for block in p.blocks perform validate_block block d; 
-}
+include "./mfront/lib/bblock_types";
+include "./mfront/lib/bblock_labels";
+include "./mfront/lib/bblock_emitter";
 
 // -----------------------------------------------------
 // Sample program
@@ -260,7 +104,7 @@ var block3 = block_t (
 
 
 var fib = program_t (
-  "finstart".label_t, 
+  "fibstart".label_t, 
   ([
     block1, 
     block2,
@@ -275,4 +119,9 @@ println$ "Program label map " + lm.str;
 
 validate_program fib lm;
 println$ "Label closure confirmed";
+
+var e = emitter lm fib;
+var c = e.emit_program ();
+println$ " EMITTED PROGHAM ";
+println$ c;
 

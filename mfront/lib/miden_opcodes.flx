@@ -266,4 +266,236 @@ class MidenOpcodes {
     | _ => return false;
     endmatch;
   }
+
+typedef fieldop_t = (
+    | `assert
+    | `assertz
+    | `assert_eq
+
+    | `add
+    | `sub
+    | `mul
+    | `div
+    | `neg
+    | `inv
+    | `pow2
+    | `exp
+    | `not
+    | `and
+    | `or
+    | `xor
+    | `eq
+    | `neq
+    | `lt
+    | `lte
+    | `gt
+    | `gte
+    | `eqw
+);
+
+typedef u32_test_t = (
+    | `u32test
+    | `u32testw
+    | `u32assert
+    | `u32assert_1
+    | `u32assert_2
+    | `u32assertw
+    | `u32cast
+    | `u32split
+);
+
+typedef u32_checked_t =  (
+    // u32 * u32 -> u32
+    | `u32checked_add
+    | `u32checked_sub
+    | `u32checked_mul
+    | `u32checked_div
+    | `u32checked_mod
+
+    // u32 * u32 -> u32 * u32
+    | `u32checked_divmod
+
+    // u32 * u32 -> u32
+    | `u32checked_min
+    | `u32checked_max
+);
+typedef u32_unchecked_t = (
+    // u32 * u32 -> u32
+    | `u32unchecked_min
+    | `u32unchecked_max
+    | `u32unchecked_div
+    | `u32unchecked_mod
+);
+
+typedef u32_wrapping_t = (
+    | `u32wrapping_add
+    | `u32wrapping_sub
+    | `u32wrapping_mul
+);
+
+// u32 * y32 -> u32 * u32
+typedef u32_overflowing_t = (
+    | `u32overflowing_add
+    | `u32overflowing_sub
+    | `u32overflowing_mul
+);
+
+// u32 * u32 * u32 -> u32 * u32
+typedef u32_threeop_t = (
+    | `u32overflowing_add3
+    | `u32overflowing_madd
+);
+
+typedef u32_bitop_t = (
+    | `u32checked_and
+    | `u32checked_or
+    | `u32checked_xor
+    | `u32checked_not
+
+    | `u32checked_shl
+    | `u32unchecked_shl
+
+    | `u32checked_shr
+    | `u32unchecked_shr
+
+    | `u32checked_rotl
+    | `u32unchecked_rotl
+
+    | `u32checked_rotr
+    | `u32unchecked_rotr
+);
+
+typedef u32_comparison_t = (
+    | `u32checked_eq
+    | `u32checked_neq
+
+    | `u32checked_lt
+    | `u32unchecked_lt
+    | `u32checked_lte
+    | `u32unchecked_lte
+    | `u32checked_gt
+    | `u32unchecked_gt
+    | `u32checked_gte
+    | `u32unchecked_gte
+);
+
+typedef u32_base_t = (
+  | u32_comparison_t
+  | u32_bitop_t
+  | u32_threeop_t
+  | u32_overflowing_t
+  | u32_wrapping_t
+  | u32_checked_t
+  | u32_unchecked_t
+  | u32_test_t
+);
+
+typedef stack_manip_t = (
+    | `drop
+    | `dropw
+    | `padw
+    | `dup
+    | `dupw
+    | `swap
+
+    | `cswap
+    | `cswapw
+
+    | `sdepth
+    | `caller
+
+    | `adv_loadw
+    | `adv_pipe
+
+    | `mem_load
+    | `mem_loadw
+
+    | `mem_store
+    | `mem_storew
+    | `mem_stream
+
+
+    | `rpperm
+    | `rphash
+    | `mtree_get
+    | `mtree_set
+    | `mtree_cwm
+);
+
+// ops with immediate mode argumemts
+typedef imode_t =
+(
+    | `add
+    | `sub
+    | `mul
+    | `div
+    | `exp
+    | `eq
+    | `neq
+
+
+    | `u32checked_add
+    | `u32overflowing_add
+    | `u32wrapping_add
+    | `u32wrapping_add3
+
+    | `u32checked_sub
+    | `u32overflowing_sub
+    | `u32wrapping_sub
+
+    | `u32checked_mul
+    | `u32overflowing_mul
+    | `u32wrapping_mul
+    | `u32wrapping_madd
+
+    | `u32checked_div
+    | `u32unchecked_div
+
+    | `u32checked_mod
+    | `u32unchecked_mod
+
+    | `u32checked_divmod
+    | `u32unchecked_divmod
+
+    | `u32checked_shl
+    | `u32unchecked_shl
+
+    | `u32checked_shr
+    | `u32unchecked_shr
+
+    | `u32checked_rotl
+    | `u32unchecked_rotl
+
+    | `u32checked_rotr
+    | `u32unchecked_rotr
+ 
+    | `u32checked_eq
+    | `u32checked_neq
+
+    | `dup
+    | `dupw
+    | `swap
+    | `swapw
+    | `movup
+    | `movupw
+    | `movdn
+    | `movdnw
+    | `locaddr
+
+    | `mem_load
+    | `mem_loadw
+
+    | `mem_store
+    | `mem_storew
+
+    | `loc_load
+    | `loc_loadw
+    | `loc_store
+    | `loc_storew
+);
+
+typedef imop_t = (
+  | `immediate of imode_t * int 
+);
+
 }

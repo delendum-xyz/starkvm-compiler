@@ -1,6 +1,7 @@
 // basic block compiler
 // Translate basic block to MidenVM
 
+// ----------------------------------- atom ---------------------------------------------------------
 struct atom_t {
   // any valid miden assembler is allowed here
   // provided it is balanced syntactically
@@ -10,11 +11,13 @@ instance Str[atom_t] { fun str (x:atom_t) : string => cat "\n  " x.masm; }
 
 ctor atom_t (x:string) => atom_t ( list[string] x );
 
+// ----------------------------------- label ---------------------------------------------------------
 struct label_t {
   name: string;
 }
 instance Str[label_t] { fun str (x:label_t) => x.name; }
 
+// ----------------------------------- switch ---------------------------------------------------------
 struct switch_t {
   targets: list[label_t];
 }
@@ -32,25 +35,30 @@ fun ugoto (x:string) : terminator_t  => Switch (switch_t ([x.label_t]));
 // conditional goto (false case first)
 fun cgoto (x:string) (y:string) : terminator_t  => Switch (switch_t ([x.label_t,y.label_t]));
 
+// ----------------------------------- call ---------------------------------------------------------
 struct call_t {
   target: label_t;
   continuation: label_t;
 }
 instance Str[call_t] { fun str (x: call_t) => x.target.str+"/"+x.continuation.str; }
 
+// ----------------------------------- tailcall ---------------------------------------------------------
 struct tailcall_t {
   target: label_t;
 }
 instance Str[tailcall_t] { fun str (x: tailcall_t) => x.target.str; }
 
+// ----------------------------------- return ---------------------------------------------------------
 struct return_t {}
 
+//  ----------------------------------- terminator ---------------------------------------------------------
 variant terminator_t = 
 | Switch of switch_t
 | Call of call_t
 | TailCall of  tailcall_t
 | Return of return_t
 ; 
+
 instance Str[terminator_t] { 
   fun str : terminator_t -> string =
   | Switch x => "Switch " + x.str
@@ -60,6 +68,7 @@ instance Str[terminator_t] {
   ;
 }
 
+//  ----------------------------------- block ---------------------------------------------------------
 struct block_t {
   label: label_t;           // Symbolic entry point
   atoms: list[atom_t];     // sequentially exected codes 
@@ -73,6 +82,7 @@ instance Str[block_t] {
   ;
 }
 
+//  ----------------------------------- program ---------------------------------------------------------
 struct program_t {
   proot: label_t;
   blocks: list[block_t];

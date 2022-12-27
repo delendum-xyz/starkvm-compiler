@@ -325,11 +325,18 @@ class stmt_parser {
           prln$ "else # Miden";
         elif h == "end" do
           prln$ "end # Miden";
+        elif h == "begin" do
+          prln$ "begin # Miden";
         else
           var tks = Cons (h,t);
           var ptks = cat "" tks;
           if tks.MidenOpcodes::isvalidopcode do 
-            prln$ ptks + " # validated opcode";
+            if not ptks.MidenOpcodes::isvalidpush do
+              var xop = MidenOpcodes::oparse fail ptks; 
+              prln$ ptks + " # " + xop._strr;
+            else
+              prln$ ptks + " # validated opcode [N/A]";
+            done
           else
             prln$ ptks + " # OPCODE NOT VALIDATED";
           done

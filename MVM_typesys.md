@@ -49,7 +49,9 @@ is an example.
 # cdrop
 
 This is a nasty operation because it required *dependent typing*.
-It has two types: X *
+It has two types: X * 2 -> X and X * 2 -> unit depending on the top
+pf stack boolean.
+
 
 # Generics
 

@@ -189,8 +189,8 @@ class MidenOpcodes {
   ;
 
   // check for integer literals miden allows WITHOUT any bounds checks
-  fun ishexintlit(x:string) => x in RE2 "\\d+";
-  fun isdecintlit(x:string) => x in RE2 "0x[[:xdigit:]]+";
+  fun isdecintlit(x:string) => x in RE2 "\\d+";
+  fun ishexintlit(x:string) => x in RE2 "0x[[:xdigit:]]+";
   fun isintlit(x:string) => x.ishexintlit or x.isdecintlit;
 
   // check for a miden name
@@ -204,7 +204,7 @@ class MidenOpcodes {
   }
 
   fun isvalidpush (x:string) {
-    return x in RE2 "push(\\.(\\d|0x[[:xdigit:]]+)){1,16}";
+    return x in RE2 "push(\\.(\\d+|0x[[:xdigit:]]+)){1,16}";
   }
 
   // cdrop consumes either 1 element or 2 depending on the TOS
@@ -293,42 +293,6 @@ val unit_t = `product Empty[mvm_type_t];
 val bool_t = `sum ([unit_t, unit_t]);
  
 // terms
-typedef fieldop_t = (
-    | `assert
-    | `assertz
-    | `assert_eq
-
-    // p * p -> p
-    | `add
-    | `sub
-    | `mul
-    | `div
-    // p -> p
-    | `neg
-    | `inv
-    | `pow2
-    | `exp
-
-    // 2 -> 2
-    | `not
-
-    // 2 * 2 -> 2 
-    | `and
-    | `or
-    | `xor
-
-    // p * p -> 2
-    | `eq
-    | `neq
-    | `lt
-    | `lte
-    | `gt
-    | `gte
-
-    // w * w -> 2
-    | `eqw
-);
-
 typedef u32_test_t = (
     | `u32test
     | `u32testw
@@ -361,6 +325,10 @@ typedef u32_unchecked_t = (
     | `u32unchecked_max
     | `u32unchecked_div
     | `u32unchecked_mod
+
+    // u32 * u32 -> u32 * u32
+    | `u32unchecked_divmod
+
 );
 
 typedef u32_wrapping_t = (
@@ -426,6 +394,43 @@ typedef u32_base_t = (
   | u32_test_t
 );
 
+typedef fieldop_t = (
+    | `assert
+    | `assertz
+    | `assert_eq
+
+    // p * p -> p
+    | `add
+    | `sub
+    | `mul
+    | `div
+    // p -> p
+    | `neg
+    | `inv
+    | `pow2
+    | `exp
+
+    // 2 -> 2
+    | `not
+
+    // 2 * 2 -> 2 
+    | `and
+    | `or
+    | `xor
+
+    // p * p -> 2
+    | `eq
+    | `neq
+    | `lt
+    | `lte
+    | `gt
+    | `gte
+
+    // w * w -> 2
+    | `eqw
+);
+
+
 typedef stack_manip_t = (
     | `drop
     | `dropw
@@ -463,7 +468,7 @@ typedef stack_manip_t = (
     | `mtree_cwm
 );
 
-// ops with immediate mode argumemts
+// ops with im mode argumemts
 typedef imode_t =
 (
     | `add
@@ -535,8 +540,319 @@ typedef imode_t =
     | `loc_storew
 );
 
-typedef imop_t = (
-  | `immediate of imode_t * int 
+typedef op_base_t = (
+   | fieldop_t
+   | u32_base_t
+   | stack_manip_t
 );
+
+typedef imop_t = (
+  | `im of imode_t * int 
+);
+
+typedef op_t = (
+  | op_base_t 
+  | imop_t
+);
+
+typedef token_t = string;
+
+// HACK: this rubbish should be done properly.
+// The type system does not handle "any" correctly!
+// The compiler needs to be fixed but in the meantime
+// the library should encode this crap correctly.
+// At present throw, raise, proc_fail and fun_fail
+// are all defined by they all throw a ::std::runtime_error
+// but we want to throw a continuation!
+// throw_continuation does that, but it is a procedure!
+//
+// In general an escaping procedure which operates by throwing
+// should work in a function, and we SHOULD be able to hack it's
+// type to "any" which unifies with anything .. and we can do that.
+// 
+// The problem is, the function is converted to a procedure
+// and then subsequent compilation steps fail.
+//
+// The idea was, a procedure call that throws can be used
+// in functional code even though it doesn't return a value
+// as expected, because it unwinds the stack, so it's return
+// type is irrelevant anyhow.
+
+const thrower [T]: T  = "?1()";
+
+fun ffail[T] (fail: string -> 0) (x:string) {
+  fail x;
+  return thrower[T]; 
+}
+
+// requires valid hex input
+fun hexdig (x:char) : int {
+  var d = x.ord; 
+  val zero = "0".char.ord;
+  val nine = "9".char.ord;
+  val A = "A".char.ord;
+  val F = "F".char.ord;
+  val a = "a".char.ord;
+
+  if d <= nine do return d - zero;
+  elif a<= F do return d - F;
+  else return d - a;
+  done
+}
+
+fun parse_hex (x:string) : size {
+  var v = 0uz;
+  var n = x.len.int;
+  for (var i=0; i < n; ++i; ) do
+    var d = x.i.hexdig.size;
+    v = v * 16uz + d;
+  done
+  return  v;
+}
+
+fun parse_dec (x:string) : size {
+  var v = 0uz;
+  var n = x.len.int;
+  for (var i=0; i < n; ++i; ) do
+    var d = x.i.hexdig.size;
+    v = v * 10uz + d;
+  done
+  return  v;
+}
+
+
+// parse hex: should be in the library!
+fun parse_hex_lit (fail:string->0) (x:string) : size =>
+  match x.[0 to 1] with
+  | "0x" => parse_hex x.[2 to]
+  |  y => ffail[size] fail$ "Invalid hex '" + x + "'"
+  endmatch
+;
+fun parse_dec_lit (fail:string->0) (x:string) : size =>
+  parse_dec x
+;
+
+
+fun parse_basic_op (fail: string -> 0) (op: string) : op_base_t {
+  match op with
+
+
+//----------------------
+
+    | "assert" => return #`assert;
+    | "assertz" => return #`assertz;
+    | "assert_eq" => return #`assert_eq;
+
+    | "add" => return #`add;
+    | "sub" => return #`sub;
+    | "mul" => return #`mul;
+    | "div" => return #`div;
+    | "neg" => return #`neg;
+    | "inv" => return #`inv;
+    | "pow2" => return #`pow2;
+    | "exp" => return #`exp;
+    | "not" => return #`not;
+    | "and" => return #`and;
+    | "or" => return #`or;
+    | "xor" => return #`xor;
+    | "eq" => return #`eq;
+    | "neq" => return #`neq;
+    | "lt" => return #`lt;
+    | "lte" => return #`lte;
+    | "gt" => return #`gt;
+    | "gte" => return #`gte;
+    | "eqw" => return #`eqw;
+
+    | "u32test" => return #`u32test;               
+    | "u32testw" => return #`u32testw;
+    | "u32assert" => return #`u32assert;
+    | "u32assert.1" => return #`u32assert_1;
+    | "u32assert.2" => return #`u32assert_2;
+    | "u32assertw" => return #`u32assertw;
+    | "u32cast" => return #`u32cast;
+    | "u32split" => return #`u32split;
+
+    | "u32checked_add" => return #`u32checked_add;
+    | "u32overflowing_add" => return #`u32overflowing_add;
+    | "u32wrapping_add" => return #`u32wrapping_add;
+    | "u32overflowing_add3" => return #`u32overflowing_add3;
+
+    | "u32checked_sub" => return #`u32checked_sub;
+    | "u32overflowing_sub" => return #`u32overflowing_sub;
+    | "u32wrapping_sub" => return #`u32wrapping_sub;
+
+    | "u32checked_mul" => return #`u32checked_mul;
+    | "u32overflowing_mul" => return #`u32overflowing_mul;
+    | "u32wrapping_mul" => return #`u32wrapping_mul;
+    | "u32overflowing_madd" => return #`u32overflowing_madd;
+
+    | "u32checked_div" => return #`u32checked_div;
+    | "u32unchecked_div" => return #`u32unchecked_div;
+
+    | "u32checked_mod" => return #`u32checked_mod;
+    | "u32unchecked_mod" => return #`u32unchecked_mod;
+
+    | "u32checked_divmod" => return #`u32checked_divmod;
+    | "u32unchecked_divmod" => return #`u32unchecked_divmod; 
+
+    | "u32checked_and" => return #`u32checked_and;
+    | "u32checked_or" => return #`u32checked_or;
+    | "u32checked_xor" => return #`u32checked_xor;
+    | "u32checked_not" => return #`u32checked_not;
+
+    | "u32checked_shl" => return #`u32checked_shl;
+    | "u32unchecked_shl" => return #`u32unchecked_shl;
+
+    | "u32checked_shr" => return #`u32checked_shr;
+    | "u32unchecked_shr" => return #`u32unchecked_shr;
+
+    | "u32checked_rotl" => return #`u32checked_rotl;
+    | "u32unchecked_rotl" => return #`u32unchecked_rotl;
+
+    | "u32checked_rotr" => return #`u32checked_rotr;
+    | "u32unchecked_rotr" => return #`u32unchecked_rotr;
+ 
+    | "u32checked_eq" => return #`u32checked_eq;
+    | "u32checked_neq" => return #`u32checked_neq;
+
+    | "u32checked_lt" => return #`u32checked_lt;
+    | "u32unchecked_lt" => return #`u32unchecked_lt;
+    | "u32checked_lte" => return #`u32checked_lte;
+    | "u32unchecked_lte" => return #`u32unchecked_lte;
+    | "u32checked_gt" => return #`u32checked_gt;
+    | "u32unchecked_gt" => return #`u32unchecked_gt;
+    | "u32checked_gte" => return #`u32checked_gte;
+    | "u32unchecked_gte" => return #`u32unchecked_gte;
+
+    | "u32checked_min" => return #`u32checked_min;
+    | "u32unchecked_min" => return #`u32unchecked_min;
+    | "u32checked_max" => return #`u32checked_max;
+    | "u32unchecked_max" => return #`u32unchecked_max;
+
+    | "drop" => return #`drop;
+    | "dropw" => return #`dropw;
+    | "padw" => return #`padw;
+    | "dup" => return #`dup;
+    | "dupw" => return #`dupw;
+    | "swap" => return #`swap;
+
+    | "cswap" => return #`cswap;
+    | "cswapw" => return #`cswapw;
+
+    | "sdepth" => return #`sdepth;
+    | "caller" => return #`caller;
+
+    | "adv_loadw" => return #`adv_loadw;
+    | "adv_pipe" => return #`adv_pipe;
+
+    | "mem_load" => return #`mem_load;
+    | "mem_loadw" => return #`mem_loadw;
+
+    | "mem_store" => return #`mem_store;
+    | "mem_storew" => return #`mem_storew;
+    | "mem_stream" => return #`mem_stream;
+
+    | "rpperm" => return #`rpperm;
+    | "rphash" => return #`rphash;
+    | "mtree_get" => return #`mtree_get;
+    | "mtree_set" => return #`mtree_set;
+    | "mtree_cwm" => return #`mtree_cwm;
+
+  | _ => fail$ "unrecognised opcode " + op;
+  endmatch;
+};
+
+fun parse_im_op (fail: string -> 0) (op: string) : imode_t {
+  match op with
+
+    | "add" => return #`add;
+    | "sub" => return #`sub;
+    | "mul" => return #`mul;
+    | "div" => return #`div;
+    | "exp" => return #`exp;
+    | "eq" => return #`eq;
+    | "neq" => return #`neq;
+
+
+    | "u32checked_add" => return #`u32checked_add;
+    | "u32overflowing_add" => return #`u32overflowing_add;
+    | "u32wrapping_add" => return #`u32wrapping_add;
+    | "u32wrapping_add3" => return #`u32wrapping_add3;
+
+    | "u32checked_sub" => return #`u32checked_sub;
+    | "u32overflowing_sub" => return #`u32overflowing_sub;
+    | "u32wrapping_sub" => return #`u32wrapping_sub;
+
+    | "u32checked_mul" => return #`u32checked_mul;
+    | "u32overflowing_mul" => return #`u32overflowing_mul;
+    | "u32wrapping_mul" => return #`u32wrapping_mul;
+    | "u32wrapping_madd" => return #`u32wrapping_madd;
+
+    | "u32checked_div" => return #`u32checked_div;
+    | "u32unchecked_div" => return #`u32unchecked_div;
+
+    | "u32checked_mod" => return #`u32checked_mod;
+    | "u32unchecked_mod" => return #`u32unchecked_mod;
+
+    | "u32checked_divmod" => return #`u32checked_divmod;
+    | "u32unchecked_divmod" => return #`u32unchecked_divmod;
+
+    | "u32checked_shl" => return #`u32checked_shl;
+    | "u32unchecked_shl" => return #`u32unchecked_shl;
+
+    | "u32checked_shr" => return #`u32checked_shr;
+    | "u32unchecked_shr" => return #`u32unchecked_shr;
+
+    | "u32checked_rotl" => return #`u32checked_rotl;
+    | "u32unchecked_rotl" => return #`u32unchecked_rotl;
+
+    | "u32checked_rotr" => return #`u32checked_rotr;
+    | "u32unchecked_rotr" => return #`u32unchecked_rotr;
+ 
+    | "u32checked_eq" => return #`u32checked_eq;
+    | "u32checked_neq" => return #`u32checked_neq;
+
+    | "dup" => return #`dup;
+    | "dupw" => return #`dupw;
+    | "swap" => return #`swap;
+    | "swapw" => return #`swapw;
+    | "movup" => return #`movup;
+    | "movupw" => return #`movupw;
+    | "movdn" => return #`movdn;
+    | "movdnw" => return #`movdnw;
+    | "locaddr" => return #`locaddr;
+
+    | "mem_load" => return #`mem_load;
+    | "mem_loadw" => return #`mem_loadw;
+
+    | "mem_store" => return #`mem_store;
+    | "mem_storew" => return #`mem_storew;
+
+    | "loc_load" => return #`loc_load;
+    | "loc_loadw" => return #`loc_loadw;
+    | "loc_store" => return #`loc_store;
+    | "loc_storew" => return #`loc_storew;
+
+
+  | _ => fail$ "unrecognised opcode " + op;
+  endmatch;
+};
+
+
+fun oparse(fail:string->0) (x:token_t) : op_t {
+  var subtoks = split (x,".");;
+  match subtoks with
+  | [op] => return parse_basic_op fail op :>> op_t;
+  | [op,arg] => 
+    var y = 
+      if isdecintlit arg then (parse_dec_lit fail arg).int
+      elif ishexintlit arg then (parse_hex_lit fail arg).int
+      else ffail[int] fail$ "Integer required after " + op + "."
+      endif
+    ;
+    return `im (parse_im_op fail op, y) :>> op_t;
+  | _ => fail$ "Unrecognised opcode " + x;
+  endmatch;
+}
 
 }

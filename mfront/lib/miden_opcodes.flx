@@ -267,29 +267,65 @@ class MidenOpcodes {
     endmatch;
   }
 
+// types
+typedef MVM_atomic_type_t = (
+  | `p // prime field element
+  | `w // machine word (4 elements)
+  | `u32 // 32 bit wrapping unsigned int: ring
+  | `i32 // 32 bit checked or unchecked: integer approx
+);
+
+// open form
+typedef open_MVM_type_constructor_t [T] = (
+  | `sum of list[T]
+  | `product of list[T]
+  | `procedure of list[T] * list[T] // domain, codomain
+  | `address of int                 // memory address
+  | `atom of MVM_atomic_type_t 
+);
+
+// Closed forms
+typedef mvm_type_t = open_MVM_type_constructor_t [mvm_type_t];
+
+// these are really open since they don't depend on the recursion
+val void_t = `sum Empty[mvm_type_t];
+val unit_t = `product Empty[mvm_type_t];
+val bool_t = `sum ([unit_t, unit_t]);
+ 
+// terms
 typedef fieldop_t = (
     | `assert
     | `assertz
     | `assert_eq
 
+    // p * p -> p
     | `add
     | `sub
     | `mul
     | `div
+    // p -> p
     | `neg
     | `inv
     | `pow2
     | `exp
+
+    // 2 -> 2
     | `not
+
+    // 2 * 2 -> 2 
     | `and
     | `or
     | `xor
+
+    // p * p -> 2
     | `eq
     | `neq
     | `lt
     | `lte
     | `gt
     | `gte
+
+    // w * w -> 2
     | `eqw
 );
 
@@ -398,7 +434,12 @@ typedef stack_manip_t = (
     | `dupw
     | `swap
 
+    // generic
+    // 2 * f -> f
+    // 2 * u32 -> u32
+    // 2 * 2 -> 2
     | `cswap
+    // 2 * w -> w
     | `cswapw
 
     | `sdepth

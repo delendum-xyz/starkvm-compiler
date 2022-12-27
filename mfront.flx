@@ -331,12 +331,12 @@ class stmt_parser {
           var tks = Cons (h,t);
           var ptks = cat "" tks;
           if tks.MidenOpcodes::isvalidopcode do 
-            if not ptks.MidenOpcodes::isvalidpush do
+            //if not ptks.MidenOpcodes::isvalidpush do
               var xop = MidenOpcodes::oparse fail ptks; 
               prln$ ptks + " # " + xop._strr;
-            else
-              prln$ ptks + " # validated opcode [N/A]";
-            done
+            //else
+            //  prln$ ptks + " # validated opcode [N/A]";
+            //done
           else
             prln$ ptks + " # OPCODE NOT VALIDATED";
           done

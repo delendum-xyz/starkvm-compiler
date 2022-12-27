@@ -548,6 +548,7 @@ typedef op_base_t = (
 
 typedef imop_t = (
   | `im of imode_t * int 
+  | `push of list[int]
 );
 
 typedef op_t = (
@@ -623,7 +624,7 @@ fun parse_dec (x:string) : size {
 
 // parse hex: should be in the library!
 fun parse_hex_lit (fail:string->0) (x:string) : size =>
-  match x.[0 to 1] with
+  match x.[0 to 2] with
   | "0x" => parse_hex x.[2 to]
   |  y => ffail[size] fail$ "Invalid hex '" + x + "'"
   endmatch
@@ -631,7 +632,12 @@ fun parse_hex_lit (fail:string->0) (x:string) : size =>
 fun parse_dec_lit (fail:string->0) (x:string) : size =>
   parse_dec x
 ;
-
+fun parse_int_lit (fail:string->0) (x:string) : size =>
+  if x.isdecintlit then parse_dec_lit fail x
+  elif x.ishexintlit then parse_hex_lit fail x 
+  else ffail[size] fail$ "Invalid int literal " + x
+  endif
+;
 
 fun parse_basic_op (fail: string -> 0) (op: string) : op_base_t {
   match op with
@@ -843,6 +849,12 @@ fun oparse(fail:string->0) (x:token_t) : op_t {
   var subtoks = split (x,".");;
   match subtoks with
   | [op] => return parse_basic_op fail op :>> op_t;
+
+  | "push"! tail =>
+     var ints = unbox$ map (fun (s:string) => (parse_int_lit fail s).int) tail;
+     if ints.len.int > 16 perform fail$ "push has " + ints.len.str + " operands, max 16";
+     return `push ints :>> op_t;
+
   | [op,arg] => 
     var y = 
       if isdecintlit arg then (parse_dec_lit fail arg).int
@@ -851,6 +863,7 @@ fun oparse(fail:string->0) (x:token_t) : op_t {
       endif
     ;
     return `im (parse_im_op fail op, y) :>> op_t;
+
   | _ => fail$ "Unrecognised opcode " + x;
   endmatch;
 }

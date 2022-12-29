@@ -9,7 +9,7 @@ include "./mfront/lib/mfront_front";
 class stmt_parser {
   fun isinteger(x:string) => x.MidenOpcodes::isintlit;
     
-  proc checkint (fail: string->0) (x:string) {
+  proc checkint (fail:string->any) (x:string) {
     if not isinteger(x) perform
       fail("GOTO target must be integer, got " + x);
   }
@@ -20,7 +20,7 @@ class stmt_parser {
     | whileblock
   ;
 
-  chip stmt (fail:string -> void)
+  chip stmt (fail:string->any)
     connector io
       pin inp : %< string
       pin out : %> string
@@ -353,7 +353,7 @@ proc doit(filename:string) {
   proc ewriter (e: string) {
     write (eout, "fail["+ line_count.str + "]: " + e); 
   }
-  proc failproc (e:string) { throw_continuation {  ewriter e; }; };
+  fun failproc (e:string) : any { throw_continuation {  ewriter e; }; };
 
   var line_count = 0;
   var labels = varray[string * int] 1000.size;

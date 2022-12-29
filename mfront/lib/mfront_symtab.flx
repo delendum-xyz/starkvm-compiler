@@ -11,7 +11,7 @@ class symbol {
   }
 
   // add a new symbol
-  proc add (fail:string->0) (tab: &symbol_table_t) (key:string) (mut:bool) (typ:string) {
+  proc add (fail:string->any) (tab: &symbol_table_t) (key:string) (mut:bool) (typ:string) {
     if tab->table.haskey key do
       fail$ "Duplicate symbol " + key;
     else
@@ -23,7 +23,7 @@ class symbol {
 
   // get the information about a specified symbol
   // aborts program if it doesn't exist
-  fun get_info  (fail:string->0) (tab: &symbol_table_t) (key:string) : syminfo_t {
+  fun get_info  (fail:string->any) (tab: &symbol_table_t) (key:string) : syminfo_t {
     match tab->table.get key with
     | Some info => return info;
     | None => fail("Fetch from or store to undefined variable " + key);
@@ -31,7 +31,7 @@ class symbol {
   }
 
   // shortcut to just get the address in miden memory of a variable 
-  fun get_address  (fail:string->0) (tab: &symbol_table_t) (key:string) : int {
+  fun get_address  (fail:string->any) (tab: &symbol_table_t) (key:string) : int {
     return (get_info fail tab key).loc;
   }
 }

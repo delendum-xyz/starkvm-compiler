@@ -1,7 +1,7 @@
 // Front end utilities
 
 // Load a file and emit its lines.
-chip loader(filename: string, fail:string->0) 
+chip loader(filename: string, fail:string->any) 
   connector io
     pin out : %> string
 {
@@ -82,7 +82,7 @@ chip ehandler
 // index in varray will be label number - 2
 // array records label and line number pair
 // duplicate label bombs 
-chip label_scanner (fail:string->0) (labels: varray[(string * int)]) 
+chip label_scanner (fail:string->any) (labels: varray[(string * int)]) 
   connector io
     pin inp: %< string
 {
@@ -109,7 +109,7 @@ chip label_scanner (fail:string->0) (labels: varray[(string * int)])
   done
 }
 
-chip label_replacer (fail:string->0) (labels: varray[string * int]) 
+chip label_replacer (fail:string->any) (labels: varray[string * int]) 
   connector io
     pin inp: %< string
     pin out: %> string

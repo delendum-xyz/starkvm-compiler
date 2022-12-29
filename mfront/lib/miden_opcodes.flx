@@ -558,34 +558,6 @@ typedef op_t = (
 
 typedef token_t = string;
 
-// HACK: this rubbish should be done properly.
-// The type system does not handle "any" correctly!
-// The compiler needs to be fixed but in the meantime
-// the library should encode this crap correctly.
-// At present throw, raise, proc_fail and fun_fail
-// are all defined by they all throw a ::std::runtime_error
-// but we want to throw a continuation!
-// throw_continuation does that, but it is a procedure!
-//
-// In general an escaping procedure which operates by throwing
-// should work in a function, and we SHOULD be able to hack it's
-// type to "any" which unifies with anything .. and we can do that.
-// 
-// The problem is, the function is converted to a procedure
-// and then subsequent compilation steps fail.
-//
-// The idea was, a procedure call that throws can be used
-// in functional code even though it doesn't return a value
-// as expected, because it unwinds the stack, so it's return
-// type is irrelevant anyhow.
-
-const thrower [T]: T  = "?1()";
-
-fun ffail[T] (fail: string -> 0) (x:string) {
-  fail x;
-  return thrower[T]; 
-}
-
 // requires valid hex input
 fun hexdig (x:char) : int {
   var d = x.ord; 
@@ -623,23 +595,23 @@ fun parse_dec (x:string) : size {
 
 
 // parse hex: should be in the library!
-fun parse_hex_lit (fail:string->0) (x:string) : size =>
+fun parse_hex_lit (fail:string->any) (x:string) : size =>
   match x.[0 to 2] with
   | "0x" => parse_hex x.[2 to]
-  |  y => ffail[size] fail$ "Invalid hex '" + x + "'"
+  |  y => fail$ "Invalid hex '" + x + "'"
   endmatch
 ;
-fun parse_dec_lit (fail:string->0) (x:string) : size =>
+fun parse_dec_lit (fail:string->any) (x:string) : size =>
   parse_dec x
 ;
-fun parse_int_lit (fail:string->0) (x:string) : size =>
+fun parse_int_lit (fail:string->any) (x:string) : size =>
   if x.isdecintlit then parse_dec_lit fail x
   elif x.ishexintlit then parse_hex_lit fail x 
-  else ffail[size] fail$ "Invalid int literal " + x
+  else fail$ "Invalid int literal " + x
   endif
 ;
 
-fun parse_basic_op (fail: string -> 0) (op: string) : op_base_t {
+fun parse_basic_op (fail:string->any) (op: string) : op_base_t {
   match op with
 
 
@@ -768,7 +740,7 @@ fun parse_basic_op (fail: string -> 0) (op: string) : op_base_t {
   endmatch;
 };
 
-fun parse_im_op (fail: string -> 0) (op: string) : imode_t {
+fun parse_im_op (fail:string->any) (op: string) : imode_t {
   match op with
 
     | "add" => return #`add;
@@ -845,7 +817,7 @@ fun parse_im_op (fail: string -> 0) (op: string) : imode_t {
 };
 
 
-fun oparse(fail:string->0) (x:token_t) : op_t {
+fun oparse(fail:string->any) (x:token_t) : op_t {
   var subtoks = split (x,".");;
   match subtoks with
   | [op] => return parse_basic_op fail op :>> op_t;
@@ -859,7 +831,7 @@ fun oparse(fail:string->0) (x:token_t) : op_t {
     var y = 
       if isdecintlit arg then (parse_dec_lit fail arg).int
       elif ishexintlit arg then (parse_hex_lit fail arg).int
-      else ffail[int] fail$ "Integer required after " + op + "."
+      else fail$ "Integer required after " + op + "."
       endif
     ;
     return `im (parse_im_op fail op, y) :>> op_t;

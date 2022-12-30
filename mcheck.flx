@@ -1,0 +1,95 @@
+include "mfront/lib/mfront_front";
+include "mfront/lib/mfront_printer";
+include "mfront/lib/miden_opcodes";
+
+// program parses and validates a MVM program
+//
+// The design is as follows:
+// 1. The main input is a source sending lines through a pipeline
+//    until we get a token stream
+//
+// 2. The token stream is sent to a program collator chip.
+//    The collator gathers the tokens and emits a single program object
+//    if all goes well.
+//
+// 3. If there's an error, it writes to an error handler and suicides
+//
+// 4. To make sure there are no tokens left over, after emitting the
+//    program, we try to read another token. If we succeed we emit an
+//    error. Note a correct program is always emitted prior to this.
+//
+// 5. It is possible there aren't enough tokens to form a complete 
+//    program. In this case the processor will stall waiting for
+//    input that never comes.
+//
+//    What happens then is that the "run" subroutine that invoked
+//    the process returns, only to find there is no emitted program,
+//    in which case it, in turn, emits an error.
+//
+// SO: 
+//
+// 1. the top level program will have a variable of type:
+
+typedef result_t = (
+| `insufficient_tokens
+| `excess_tokens
+| `parse_error
+| `program of MidenOpcodes::program_t
+);
+
+// 
+// It launches the process with a run command with the variable
+// initialised to insufficient tokens
+//
+// The run returns when the process stalls.
+// If the variable says insufficient tokens, it stalled before completing the program.
+// If it says parse error, it gave up after settiog the variable.
+// If it says excess tokens, it parsed the program, saved it in the variable,
+// but then overwrote the result after reading an excess token
+// Finally, if it stalled trying to read a non-existent excess token ..
+// the final result will be the program.
+//
+// NOTE: our error handler could also abort the whole proces
+// on error preventing the program continuing after the run.
+// This is OK for a one shot operation. But not if the
+// process is configured as a server.
+
+chip mkline 
+  connector io
+    pin inp: %<string
+    pin out: %>string
+{
+  while true do
+    var x = read(io.inp);
+    write (io.out, x + " # shit\n");
+  done
+}
+
+proc mvmvalidate(filename:string) {
+  var result : result_t = #`insufficient_tokens;
+  var ein,eout = mk_ioschannel_pair[string]();
+  proc ewriter (e: string) {
+    result = #`parse_error;
+    write (eout, "fail["+ line_count.str + "]: " + e); 
+  }
+  fun failproc (e:string) : any { throw_continuation {  ewriter e; }; };
+
+  device source = loader (filename, failproc);
+  device counter = line_counter &line_count;
+  device printout = printer &line_count;
+
+  var line_count = 0; // reset for pass 2
+
+  run {
+    circuit 
+      connect source.out, counter.inp
+      connect counter.out, comment_stripper.inp
+      connect comment_stripper.out, instruction_splitter.inp
+      connect instruction_splitter.out, mkline.inp
+      connect mkline.out, printout.inp
+      wire ein to ehandler.inp
+    endcircuit
+  };
+}
+
+mvmvalidate(System::argv 1);

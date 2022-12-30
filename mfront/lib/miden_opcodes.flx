@@ -554,6 +554,36 @@ typedef imop_t = (
 typedef op_t = (
   | op_base_t 
   | imop_t
+  | `exec of string
+  | `call of string
+  | `syscall of string
+);
+
+typedef block_t = (
+  | op_t
+  | `seq of list[block_t]
+  | `if of block_t
+  | `ifelse of block_t * block_t
+  | `while of block_t
+  | `repeat of int * block_t
+);
+
+typedef proc_t = (
+  | `proc of string * int * block_t // name, local count, code
+);
+
+typedef program_t = (
+  | `procs of list[proc_t]
+  | `prog of block_t
+);
+
+typedef procorexport_t = (
+  | `proc of proc_t
+  | `export of proc_t
+);
+
+typedef library_t = (
+  | `procorexport of list[procorexport_t]
 );
 
 typedef token_t = string;

@@ -81,13 +81,16 @@ chip get_program (fail:string->any)
     match op with
     | `proc (name,count) =>
        get_block (&pb, &trail) fail io.inp;
-       println$ "PROC " + name + " count=" + count.str;
-       println pb.str;
+       println$ "proc." + name + "." + count.str + "\n";
+       print$ MidenOpcodes::indented 1 pb;
+       println$ "end\n";
 
     | `begin =>
        get_block (&pb, &trail) fail io.inp;
-       println$ "MAINLINE ";
-       println pb.str;
+       println$ "begin\n";
+       print$ MidenOpcodes::indented 1 pb;
+       println$ "end\n";
+
     endmatch;
   done
 }

@@ -539,7 +539,9 @@ typedef imode_t =
     | `loc_store
     | `loc_storew
 );
-
+instance Str[imode_t] {
+  fun str (x:imode_t) : string => "XXX";
+}
 typedef op_base_t = (
    | fieldop_t
    | u32_base_t
@@ -550,6 +552,34 @@ typedef imop_t = (
   | `im of imode_t * int 
   | `push of list[int]
 );
+
+// ARGGGGHH!!! I'm an idiot. I know what's happening it a bug in my
+// code NOT the compiler. It's not an infinite loop .. it's an infinite
+// recursion!
+//
+// The type imop_t is a subtype of `op_t. So inside the str function
+// for op_t a call of str on a value of type imop_t will call the str
+// function recursively! It will not get around to finding the Str
+// type class virtual str, which would dispatch to the most specialised
+// implementation, the one for imop_t!
+//
+// In Felix (UNLIKE C++) if an inner overload fails, Felix looks in
+// the containing scope (all the way to the root). But this overload
+// didn't fail even though it isn't the most specialised.
+//
+// I've had this problem before and the solution is simple: use
+// explicit qualification to force finding the virtual in type class Str.
+//
+// This problem is hard to get *except* with polymorphic variants!
+
+instance Str[imop_t] {
+  fun str (x:imop_t) : string => "XX";
+/*
+  | `im (op,count) => op.str+"."+count.str
+  | `push ls => "push." //+ cat "." (map (str of int) ls)
+  ;
+*/
+}
 
 typedef op_t = (
   | op_base_t 
@@ -563,9 +593,11 @@ instance Str[op_t] {
   | `exec x => "exec." + x
   | `call x => "call." + x
   | `syscall x => "syscall." + x
-  | op_base_t :>> x => "opbase " + x._strr
-  | imop_t :>> x => "imop " + x._strr
-  ;
+  | op_base_t :>> x => x._strr.[2 to]
+  | imop_t :>> x =>  match x with
+    | `im (op,count) => op._strr.[2 to] + "." + count.str
+    | `push k => "push." + cat "." (map str of int k)
+ ;
 }
 
 // This is used to reduce million mile long error messages

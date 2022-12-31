@@ -558,33 +558,78 @@ typedef op_t = (
   | `call of string
   | `syscall of string
 );
+instance Str[op_t] {
+  fun str : op_t -> string =
+  | `exec x => "exec." + x
+  | `call x => "call." + x
+  | `syscall x => "syscall." + x
+  | op_base_t :>> x => "opbase " + x._strr
+  | imop_t :>> x => "imop " + x._strr
+  ;
+}
+
+// This is used to reduce million mile long error messages
+struct opcode_t {
+  op: op_t;
+}
+instance Str[opcode_t] {
+  fun str(x:opcode_t) =>  x.op.str;
+}
+
+typedef mark_t = (
+  | `begin
+  | `end
+  | `else
+  | `if
+  | `repeat of int
+  | `while
+  | `proc of string * int
+  | `export of string * int
+  | `op of opcode_t
+);
+instance Str[mark_t] {
+  fun str: mark_t -> string = 
+  | `begin => "begin"
+  | `end => "end"
+  | `if => "if.true"
+  | `else => "else"
+  | `while => "while.true"
+  | `proc(name,count) => "proc."+name+"."+count.str
+  | `export(name,count) => "export."+name+"."+count.str
+  | `op x => x.str
+  ;
+}
 
 typedef block_t = (
-  | op_t
   | `seq of list[block_t]
+  | `op of opcode_t
   | `if of block_t
   | `ifelse of block_t * block_t
-  | `while of block_t
   | `repeat of int * block_t
+  | `while of block_t
 );
 
-typedef proc_t = (
-  | `proc of string * int * block_t // name, local count, code
-);
+fun indented (n:int) (x:block_t) =>
+  match x with
+  | `op op => "  " * n + op.str + "\n"
+  | `seq x => cat "" (map (indented n) x)
+  | `if x => "  " * n + "if.true\n" + indented (n + 1) x + "  " * n + "end\n"
+  | `while x => "  " * n + "while.true\n" + indented (n + 1) x + "  " * n + "end\n"
+  | `repeat (count,x) => "  " * n + "repeat."+count.str+"\n" + indented (n + 1) x + "  " * n + "end\n"
 
-typedef program_t = (
-  | `procs of list[proc_t]
-  | `prog of block_t
-);
+  | `ifelse (t,f) => 
+     "  " * n + "if.true\n" + 
+     indented (n + 1) t + 
+     "  " * n + "else\n" + 
+     indented (n + 1) f + 
+     "  " * n + "end\n"
+  endmatch
+;
+ 
 
-typedef procorexport_t = (
-  | `proc of proc_t
-  | `export of proc_t
-);
-
-typedef library_t = (
-  | `procorexport of list[procorexport_t]
-);
+instance Str[block_t] {
+  fun str (x:block_t) => indented 0 x;
+}
 
 typedef token_t = string;
 
@@ -638,6 +683,13 @@ fun parse_int_lit (fail:string->any) (x:string) : size =>
   if x.isdecintlit then parse_dec_lit fail x
   elif x.ishexintlit then parse_hex_lit fail x 
   else fail$ "Invalid int literal " + x
+  endif
+;
+
+fun parse_int (fail:string->any) (arg:string) : size =>
+  if isdecintlit arg then (parse_dec_lit fail arg)
+  elif ishexintlit arg then (parse_hex_lit fail arg)
+  else fail$ "Integer required, got " + arg
   endif
 ;
 
@@ -858,16 +910,28 @@ fun oparse(fail:string->any) (x:token_t) : op_t {
      return `push ints :>> op_t;
 
   | [op,arg] => 
-    var y = 
-      if isdecintlit arg then (parse_dec_lit fail arg).int
-      elif ishexintlit arg then (parse_hex_lit fail arg).int
-      else fail$ "Integer required after " + op + "."
-      endif
-    ;
-    return `im (parse_im_op fail op, y) :>> op_t;
+    var y = parse_int fail arg;
+    return `im (parse_im_op fail op, y.int) :>> op_t;
 
   | _ => fail$ "Unrecognised opcode " + x;
   endmatch;
 }
 
+fun mparse(fail:string->any) (x:token_t) : mark_t {
+  var subtoks = split (x,".");
+  match subtoks with
+  | ["begin"] => return #`begin;
+  | ["end"] => return #`end;
+  | ["else"] => return #`else;
+  | ["if","true"] => return #`if;
+  | ["while","true"] => return #`while;
+  | ["repeat",count] => return `repeat (parse_int fail count).int;
+  | ["proc", name,count] => return `proc (name, (parse_int fail count).int);
+  | ["proc",name] => return `proc (name, 0);
+  | ["export",name,count] => return `export (name, (parse_int fail count).int);
+  | ["export",name] => return `export (name, 0);
+  | _ => return `op (opcode_t (oparse fail x));
+  endmatch;
 }
+
+} // class

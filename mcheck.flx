@@ -1,6 +1,7 @@
 include "mfront/lib/mfront_front";
 include "mfront/lib/mfront_printer";
 include "mfront/lib/miden_opcodes";
+include "mfront/lib/strutil";
 
 typedef block_t = MidenOpcodes::block_t;
 typedef mark_t = MidenOpcodes::mark_t;
@@ -81,15 +82,17 @@ chip get_program (fail:string->any)
     match op with
     | `proc (name,count) =>
        get_block (&pb, &trail) fail io.inp;
-       println$ "proc." + name + "." + count.str + "\n";
-       print$ MidenOpcodes::indented 1 pb;
-       println$ "end\n";
+       var s1 = "proc." + name + "." + count.str + " # 0..0\n";
+       var s,a = MidenOpcodes::indent_stack 1 (MidenOpcodes::stack_state_t (0,0)) pb;
+       var s2 = s1 + s+ "end   # "+a.str+"\n";
+       println$ cat "\n" (map align_comments (split (s2,"\n")));
 
     | `begin =>
        get_block (&pb, &trail) fail io.inp;
-       println$ "begin\n";
-       print$ MidenOpcodes::indented 1 pb;
-       println$ "end\n";
+       s1 = "begin # 0..0 \n";
+       s, a = MidenOpcodes::indent_stack 1 (MidenOpcodes::stack_state_t (0,0)) pb;
+       s2 = s1 + s+ "end   # "+a.str+"\n";
+       println$ cat "\n" (map align_comments (split (s2,"\n")));
 
     endmatch;
   done

@@ -602,10 +602,10 @@ instance Str[op_t] {
 
 // This is used to reduce million mile long error messages
 struct opcode_t {
-  op: op_t;
+  xop: op_t;
 }
 instance Str[opcode_t] {
-  fun str(x:opcode_t) =>  x.op.str;
+  fun str(x:opcode_t) =>  x.xop.str;
 }
 
 typedef mark_t = (
@@ -643,7 +643,7 @@ typedef block_t = (
 
 fun indented (n:int) (x:block_t) =>
   match x with
-  | `op op => "  " * n + op.str + "\n"
+  | `op op => "  " * n + op.str + "   # "+(let x = (op.xop).opinfo in (x.2 - x.1)).str+"\n"
   | `seq x => cat "" (map (indented n) x)
   | `if x => "  " * n + "if.true\n" + indented (n + 1) x + "  " * n + "end\n"
   | `while x => "  " * n + "while.true\n" + indented (n + 1) x + "  " * n + "end\n"
@@ -656,6 +656,98 @@ fun indented (n:int) (x:block_t) =>
      indented (n + 1) f + 
      "  " * n + "end\n"
   endmatch
+;
+ 
+// can be used to represent both the current stack state and
+// also a delta to it
+struct stack_state_t {
+  minlev : int;
+  maxlev : int;
+}
+
+fun + (x: stack_state_t, y: stack_state_t)  =>
+  stack_state_t (x.minlev + y.minlev, x.maxlev + y.maxlev)
+;
+
+fun * (x: stack_state_t, y: int)  =>
+  stack_state_t (x.minlev * y, x.maxlev * y)
+;
+
+fun join (x: stack_state_t, y: stack_state_t) =>
+  stack_state_t (min (x.minlev, y.minlev), max (x.maxlev, y.maxlev))
+;
+
+instance Str[stack_state_t] {
+  fun str (x:stack_state_t): string => x.minlev.str " .. " x.maxlev.str;
+}
+
+// FIXME: adjust for cdrop
+fun stdelta (op: opcode_t) => 
+  let x = op.xop.opinfo in stack_state_t (x.2 - x.1, x.2 - x.1)
+;
+
+fun indent_stack (n:int) (stkin: stack_state_t)  (x:block_t) : string * stack_state_t =>
+  match x with
+  | `op op => 
+    let delta = stdelta op in
+    let stkout = stkin + delta in
+    "  " * n + op.str + "   # + "+delta.str+" = "+stkout.str+"\n",
+    stkout
+
+  | `seq x => 
+     let s, r = fold_left 
+       (
+         fun (s:string, a:stack_state_t) (blk: block_t) =>
+         let s1, a1 = indent_stack n a blk in
+         s + s1,  a1
+       ) 
+       ("", stkin)
+       x 
+     in s, r
+
+  | `if x => 
+     let delta = stack_state_t (-1,-1) in
+     let stkout = stkin + delta in
+     let s1 = "  " * n + "if.true   # + "+delta.str+" = "+stkout.str+"\n" in
+     let s2,a2 =  indent_stack (n + 1) stkout x in
+     let result = join (stkout, a2) in
+     s1 + s2 + "  " * n + "end  # " + result.str + "\n", 
+     result
+
+
+  | `while x => 
+     let delta = stack_state_t (-1,-1) in
+     let stkout = stkin + delta in
+     let s1 = "  " * n + "while.true   # + "+delta.str+" = "+stkout.str+"\n" in
+     let s2,a2 =  indent_stack (n + 1) stkout x in
+     let result = a2 in
+     s1 + s2 + "  " * n + "end  # " + result.str+"\n",
+     result
+
+
+  | `repeat (count,x) => 
+     let s1 = "  " * n + "repeat." + count.str + "  # RESET 0..0\n" in
+     let s2,delta =  indent_stack (n + 1) (stack_state_t (0,0)) x in
+     let result = stkin + delta * count in
+     s1 + s2 + "  " * n + "end # + "+ delta.str " * " + count.str + " = " + result.str + " \n", 
+     result
+
+  | `ifelse (t,f) => 
+     let delta = stack_state_t (-1,-1) in
+     let stkout = stkin + delta in
+
+     let s1 = "  " * n + "if.true   # + "+delta.str+" = "+stkout.str+"\n" in
+     let s2,a2 =  indent_stack (n + 1) stkout t in
+
+     let s3 = "  " * n + "else     # + "+delta.str+" = "+stkout.str+"\n" in
+     let s4,a4 =  indent_stack (n + 1) stkout f in
+
+     let result = join (a2, a4) in
+     s1 + s2 + s3 + s4 + "  " * n + "end  # " + result.str + "\n",  
+     result
+
+  endmatch
+
 ;
  
 
@@ -965,5 +1057,182 @@ fun mparse(fail:string->any) (x:token_t) : mark_t {
   | _ => return `op (opcode_t (oparse fail x));
   endmatch;
 }
+
+// Crude data for opcodes
+// cycles, stack pop, stack push
+// 
+fun opinfo: op_t -> int^3 =
+    | `assert => (1,1,0)
+    | `assertz => (2,1,0)
+    | `assert_eq => (2,2,0)
+
+    | `add => (1,2,1)
+    | `im (`add,_) => (2,1,1)
+    | `sub => (2,2,1)
+    | `im (`sub,_) => (2,1,1)
+    | `mul => (1,2,1)
+    | `im (`mul,_) => (2,1,1)
+    | `div => (2,2,1)
+    | `im (`div,_) => (2,1,1)
+    | `neg => (1,1,1)
+    | `inv => (1,1,1)
+    | `pow2 => (16,1,1)
+    | `exp => (73,2,1)
+    | `im (`exp,_) => (73,1,1)
+    | `not => (1,1,1)
+    | `and => (1,2,1)
+    | `or => (1,2,1)
+    | `xor => (7,2,1)
+    | `eq => (1,2,1)
+    | `im (`eq,_) => (2,1,1)
+    | `neq => (1,2,1)
+    | `im (`neq,_) => (2,1,1)
+    | `lt => (17,2,1)
+    | `lte => (18,2,1)
+    | `gt => (18,2,1)
+    | `gte => (18,2,1)
+    | `eqw => (15,8,4)
+
+    | `u32test => (5,1,2)               
+    | `u32testw => (23,4,5)
+    | `u32assert => (3,1,1)
+    | `u32assert_1 => (3,1,1)
+    | `u32assert_2 => (1,2,2)
+    | `u32assertw => (6,4,4)
+    | `u32cast => (2,1,1)
+    | `u32split => (1,1,2)
+
+    | `u32checked_add => (4,2,1)
+    | `im (`u32checked_add,_) => (6,1,1)
+    | `u32overflowing_add => (1,2,2)
+    | `im (`u32overflowing_add,_) => (3,1,2)
+    | `u32wrapping_add => (2,2,1)
+    | `im (`u32wrapping_add,_) => (4,1,1)
+    | `u32overflowing_add3 => (1,3,2)
+    | `im (`u32wrapping_add3,_) => (2,3,1)
+
+    | `u32checked_sub => (4,2,1)
+    | `im (`u32checked_sub,_) => (6,1,1)
+    | `u32overflowing_sub => (1,2,2)
+    | `im (`u32overflowing_sub,_) => (2,1,2)
+    | `u32wrapping_sub => (2,2,1)
+    | `im (`u32wrapping_sub,_) => (4,1,1)
+
+    | `u32checked_mul => (4,2,1)
+    | `im (`u32checked_mul,_) => (6,1,1)
+    | `u32overflowing_mul => (1,2,2)
+    | `im (`u32overflowing_mul,_) => (3,1,2)
+    | `u32wrapping_mul => (2,2,1)
+    | `im (`u32wrapping_mul,_) => (4,1,1)
+    | `u32overflowing_madd => (1,3,2)
+    | `im (`u32wrapping_madd,_) => (2,3,1)
+
+    | `u32checked_div => (3,2,1)
+    | `im (`u32checked_div,_) => (5,1,1)
+    | `u32unchecked_div => (2,2,1)
+    | `im (`u32unchecked_div,_) => (4,1,1)
+
+    | `u32checked_mod => (4,2,1)
+    | `im (`u32checked_mod,_) => (6,1,1)
+    | `u32unchecked_mod => (3,2,1)
+    | `im (`u32unchecked_mod,_) => (5,1,1)
+
+    | `u32checked_divmod => (2,2,2)
+    | `im (`u32checked_divmod,_) => (4,1,2)
+    | `u32unchecked_divmod => (1,2,2) 
+    | `im (`u32unchecked_divmod,_) => (3,1,2)
+
+    | `u32checked_and => (1,2,1)
+    | `u32checked_or => (6,2,1)
+    | `u32checked_xor => (1,2,1)
+    | `u32checked_not => (5,1,1)
+
+    | `u32checked_shl => (47,2,1)
+    | `im (`u32checked_shl,_) => (4,1,1)
+    | `u32unchecked_shl => (40,2,1)
+    | `im (`u32unchecked_shl,_) => (3,1,1)
+
+    | `u32checked_shr => (47,2,1)
+    | `im (`u32checked_shr,_) => (4,1,1)
+    | `u32unchecked_shr => (47,2,1)
+    | `im (`u32unchecked_shr,_) => (4,1,1)
+
+    | `u32checked_rotl => (47,2,1)
+    | `im (`u32checked_rotl,_) => (4,1,1)
+    | `u32unchecked_rotl => (40,2,1)
+    | `im (`u32unchecked_rotl,_) => (3,1,1)
+
+    | `u32checked_rotr => (59,2,1)
+    | `im (`u32checked_rotr,_) => (6,1,1)
+    | `u32unchecked_rotr => (44,2,1)
+    | `im (`u32unchecked_rotr,_) => (3,1,1)
+ 
+    | `u32checked_eq => (2,2,1)
+    | `im (`u32checked_eq,_) => (4,1,1)
+    | `u32checked_neq => (3,2,1)
+    | `im (`u32checked_neq,_) => (5,1,1)
+
+    | `u32checked_lt => (6,2,1)
+    | `u32unchecked_lt => (5,2,1)
+    | `u32checked_lte => (8,2,1)
+    | `u32unchecked_lte => (7,2,1)
+    | `u32checked_gt => (7,2,1)
+    | `u32unchecked_gt => (6,2,1)
+    | `u32checked_gte => (7,2,1)
+    | `u32unchecked_gte => (6,2,1)
+
+    | `u32checked_min => (9,2,1)
+    | `u32unchecked_min => (8,2,1)
+    | `u32checked_max => (10,2,1)
+    | `u32unchecked_max => (9,2,1)
+
+    | `drop => (1,1,0)
+    | `dropw => (4,4,0)
+    | `padw => (4,0,4)
+    | `dup => (1,0,1)
+    | `im (`dup,_) => (3,0,1)
+    | `dupw => (4,0,4)
+    | `im (`dupw,_) => (4,0,4)
+    | `swap => (6,0,0)
+    | `im (`swap,_) => (6,0,0)
+    | `im (`swapw,_) => (1,0,0)
+    | `im (`movup,_) => (4,0,0)
+    | `im (`movupw,_) => (3,0,0)
+    | `im (`movdn,_) => (4,0,0)
+    | `im (`movdnw,_) => (3,1,0)
+
+    | `cswap => (1,1,0)
+    | `cswapw => (1,1,0)
+
+    | `sdepth => (2,0,1)
+    | `caller => (1,0,1)
+    | `im (`locaddr,_) => (2,0,1)
+
+    | `adv_loadw => (1,0,4)
+    | `adv_pipe => (2,13,13)
+
+    | `mem_load => (1,1,1)
+    | `im (`mem_load,_) => (2,0,1)
+    | `mem_loadw => (1,5,4)
+    | `im (`mem_loadw,_) => (2,4,4)
+
+    | `mem_store => (2,2,0)
+    | `im (`mem_store,_) => (4,1,0)
+    | `mem_storew => (1,5,0)
+    | `im (`mem_storew,_) => (3,4,0)
+    | `mem_stream => (2,13,13)
+
+    | `im (`loc_load,_) => (4,0,1)
+    | `im (`loc_loadw,_) => (4,0,4)
+    | `im (`loc_store,_) => (5,1,0)
+    | `im (`loc_storew,_) => (4,4,4)
+
+    | `rpperm => (1,12,12)
+    | `rphash => (16,8,4)
+    | `mtree_get => (9,6,4)
+    | `mtree_set => (14,10,8)
+    | `mtree_cwm => (12,10,12)
+    | `push ls => let n = ls.len.int in (n,0,n)
+  ;
 
 } // class

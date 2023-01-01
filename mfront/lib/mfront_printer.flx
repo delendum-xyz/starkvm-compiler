@@ -1,3 +1,5 @@
+include "./strutil";
+
 
 // NOTE: tabs comments to column 35
 chip printer  (line_count: &<int)

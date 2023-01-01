@@ -1,0 +1,23 @@
+
+fun align_comments(line:string):string {
+  match find(line, char "#") with
+  | None => var out = line;
+  | Some k =>
+    var l = line.[to k];
+    var r = line.[k + 1 to];
+    if l.len.int > 32 do
+      l= l+ " ";
+    else
+      l = (l.rstrip + " " * 35).[0 to 35];
+    done
+    if r.len.int > 0 do
+      var outcmt = (r.strip + " " *40).[to 40];
+      out = l + "# " + outcmt;
+    else
+      out = l;
+    done
+  endmatch;
+  return out;
+}
+
+

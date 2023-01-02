@@ -1,7 +1,7 @@
-include "mfront/lib/mfront_front";
-include "mfront/lib/mfront_printer";
-include "mfront/lib/miden_opcodes";
-include "mfront/lib/strutil";
+include "./lib/mfront_front";
+include "./lib/mfront_printer";
+include "./lib/miden_opcodes";
+include "./lib/strutil";
 
 typedef block_t = MidenOpcodes::block_t;
 typedef mark_t = MidenOpcodes::mark_t;
@@ -74,6 +74,7 @@ chip get_program (fail:string->any)
   connector io
     pin inp: %<string
 {
+// BUG: doesn't handle blank line at start
   while true do
     var x = read io.inp;
     var op = MidenOpcodes::mparse fail x;

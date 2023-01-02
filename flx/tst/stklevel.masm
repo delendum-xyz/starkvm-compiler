@@ -1,0 +1,28 @@
+begin        #0
+  push.1     #1
+  push.2     #2
+  add        #1
+  eq.0       #1
+  repeat.2   #RESET 0
+    push.1   #1
+    push.1   #2
+  end        #5 = entry to repeat + body * count
+  add        #4
+  dup        #5
+  eq.0       #5
+
+  if.true    #4
+    add.3    #3
+    dup      #4
+  else       #3 = start first branch
+    add.4    #3
+    dup      #4
+  end        #4 join branch ends
+  while.true #3
+    dup      #4
+    add      #3
+    dup      #4 = entry to while
+  end        #3 = entry to while body
+  add        #2
+end          #2 Answer
+

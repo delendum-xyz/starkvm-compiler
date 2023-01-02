@@ -1,6 +1,6 @@
-include "./mfront/lib/bblock_types";
-include "./mfront/lib/bblock_labels";
-include "./mfront/lib/bblock_emitter";
+include "./lib/bblock_types";
+include "./lib/bblock_labels";
+include "./lib/bblock_emitter";
 
 // -----------------------------------------------------
 // Sample program

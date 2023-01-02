@@ -8,7 +8,6 @@ class MidenOpcodes {
   //  ordinary swaps and move things are MISCODED
   //  as 0 pop 0 push ... should really be 16,16
   //  similarly dup.n which is really n, n + 1
-  //  and adv_push.$
   //  These will need special handing in the emulator
 
 
@@ -538,6 +537,7 @@ typedef imode_t =
     | `loc_loadw
     | `loc_store
     | `loc_storew
+    | `adv_push
 );
 instance Str[imode_t] {
   fun str (x:imode_t) : string => "XXX";
@@ -552,25 +552,6 @@ typedef imop_t = (
   | `im of imode_t * int 
   | `push of list[int]
 );
-
-// ARGGGGHH!!! I'm an idiot. I know what's happening it a bug in my
-// code NOT the compiler. It's not an infinite loop .. it's an infinite
-// recursion!
-//
-// The type imop_t is a subtype of `op_t. So inside the str function
-// for op_t a call of str on a value of type imop_t will call the str
-// function recursively! It will not get around to finding the Str
-// type class virtual str, which would dispatch to the most specialised
-// implementation, the one for imop_t!
-//
-// In Felix (UNLIKE C++) if an inner overload fails, Felix looks in
-// the containing scope (all the way to the root). But this overload
-// didn't fail even though it isn't the most specialised.
-//
-// I've had this problem before and the solution is simple: use
-// explicit qualification to force finding the virtual in type class Str.
-//
-// This problem is hard to get *except* with polymorphic variants!
 
 instance Str[imop_t] {
   fun str (x:imop_t) : string => "XX";
@@ -1028,10 +1009,29 @@ fun oparse(fail:string->any) (x:token_t) : op_t {
   match subtoks with
   | [op] => return parse_basic_op fail op :>> op_t;
 
+  | ["adv_push",arg] =>
+    var n = (parse_int fail arg).int;
+    if n > 16 perform fail$ "adv_push.n has n <=16 got n = " + n.str;
+    return `im ((#`adv_push :>>imode_t), n) :>> op_t;
+
   | "push"! tail =>
      var ints = unbox$ map (fun (s:string) => (parse_int_lit fail s).int) tail;
      if ints.len.int > 16 perform fail$ "push has " + ints.len.str + " operands, max 16";
      return `push ints :>> op_t;
+
+  | ["exec",arg] => 
+    if not arg.isqualifiedname perform fail$ "exec requires qualified name";
+    return `exec arg;
+
+  | ["call",arg] => 
+    if not arg.isqualifiedname perform fail$ "call requires qualified name";
+    return `call arg;
+
+  | ["syscall",arg] => 
+    if not arg.isqualifiedname perform fail$ "syscall requires qualified name";
+    return `syscall arg;
+
+
 
   | [op,arg] => 
     var y = parse_int fail arg;
@@ -1233,6 +1233,12 @@ fun opinfo: op_t -> int^3 =
     | `mtree_set => (14,10,8)
     | `mtree_cwm => (12,10,12)
     | `push ls => let n = ls.len.int in (n,0,n)
+    | `im (`adv_push, n) => (n,0,n)
+
+    | `exec name => (0,0,0)
+    | `call name => (0,0,0)
+    | `syscall name => (0,0,0)
+
   ;
 
 } // class

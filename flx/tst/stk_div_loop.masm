@@ -3,6 +3,5 @@ begin
   while.true
     push.1
     push.1
-    push.1
   end
 end

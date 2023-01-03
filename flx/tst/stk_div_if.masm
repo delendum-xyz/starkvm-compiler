@@ -2,8 +2,6 @@ begin        #0
   push.1     #1
   if.true    #0
     push.1   #1
-  else       #1
-    drop     #-1
   end        # DIVERGE
 end
 

@@ -667,14 +667,31 @@ instance Str[stack_state_t] {
 }
 
 // FIXME: adjust for cdrop
-fun stdelta (op: opcode_t) => 
-  let x = op.xop.opinfo in stack_state_t (x.2 - x.1, x.2 - x.1)
+fun stdelta (fail:string->any) (d:strdict[stack_state_t]) (op: opcode_t) : stack_state_t => 
+  match op.xop with
+  | `exec name =>
+     match d.get name with
+     | Some ss => ss
+     | _ => fail$ "exec undefined procedure " + name
+     endmatch
+  | `call name =>
+     match d.get name with
+     | Some ss => ss
+     | _ => fail$ "exec undefined procedure " + name
+     endmatch
+  | `syscall name =>
+     match d.get name with
+     | Some ss => ss
+     | _ => fail$ "exec undefined procedure " + name
+     endmatch
+  | _ =>
+    let x = op.xop.opinfo in stack_state_t (x.2 - x.1, x.2 - x.1)
 ;
 
-fun indent_stack (n:int) (stkin: stack_state_t)  (x:block_t) : string * stack_state_t =>
+fun indent_stack (fail:string->any) (n:int) (d: strdict[stack_state_t]) (stkin: stack_state_t)  (x:block_t) : string * stack_state_t =>
   match x with
   | `op op => 
-    let delta = stdelta op in
+    let delta = stdelta fail d op in
     let stkout = stkin + delta in
     "  " * n + op.str + "   # + "+delta.str+" = "+stkout.str+"\n",
     stkout
@@ -683,7 +700,7 @@ fun indent_stack (n:int) (stkin: stack_state_t)  (x:block_t) : string * stack_st
      let s, r = fold_left 
        (
          fun (s:string, a:stack_state_t) (blk: block_t) =>
-         let s1, a1 = indent_stack n a blk in
+         let s1, a1 = indent_stack fail n d a blk in
          s + s1,  a1
        ) 
        ("", stkin)
@@ -694,7 +711,7 @@ fun indent_stack (n:int) (stkin: stack_state_t)  (x:block_t) : string * stack_st
      let delta = stack_state_t (-1,-1) in
      let stkout = stkin + delta in
      let s1 = "  " * n + "if.true   # + "+delta.str+" = "+stkout.str+"\n" in
-     let s2,a2 =  indent_stack (n + 1) stkout x in
+     let s2,a2 =  indent_stack fail (n + 1) d stkout x in
      let result = join (stkout, a2) in
      let note = 
        if not (stkout ==  a2) then "DIV" else "join" 
@@ -707,7 +724,7 @@ fun indent_stack (n:int) (stkin: stack_state_t)  (x:block_t) : string * stack_st
      let delta = stack_state_t (-1,-1) in
      let stkout = stkin + delta in
      let s1 = "  " * n + "while.true   # + "+delta.str+" = "+stkout.str+"\n" in
-     let s2,a2 =  indent_stack (n + 1) stkout x in
+     let s2,a2 =  indent_stack fail (n + 1) d stkout x in
      let result = join (stkin,a2) in
      let note = 
        if not (stkin ==  a2) then "DIV" else "join" 
@@ -718,7 +735,7 @@ fun indent_stack (n:int) (stkin: stack_state_t)  (x:block_t) : string * stack_st
 
   | `repeat (count,x) => 
      let s1 = "  " * n + "repeat." + count.str + "  # RESET 0..0\n" in
-     let s2,delta =  indent_stack (n + 1) (stack_state_t (0,0)) x in
+     let s2,delta =  indent_stack fail (n + 1) d (stack_state_t (0,0)) x in
      let result = stkin + delta * count in
      s1 + s2 + "  " * n + "end # + "+ delta.str " * " + count.str + " = " + result.str + " \n", 
      result
@@ -728,10 +745,10 @@ fun indent_stack (n:int) (stkin: stack_state_t)  (x:block_t) : string * stack_st
      let stkout = stkin + delta in
 
      let s1 = "  " * n + "if.true   # + "+delta.str+" = "+stkout.str+"\n" in
-     let s2,a2 =  indent_stack (n + 1) stkout t in
+     let s2,a2 =  indent_stack fail (n + 1) d stkout t in
 
      let s3 = "  " * n + "else     # + "+delta.str+" = "+stkout.str+"\n" in
-     let s4,a4 =  indent_stack (n + 1) stkout f in
+     let s4,a4 =  indent_stack fail (n + 1) d stkout f in
 
      let result = join (a2, a4) in
      let note = 

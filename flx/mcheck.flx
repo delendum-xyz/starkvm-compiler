@@ -75,6 +75,8 @@ chip get_program (fail:string->any)
     pin inp: %<string
 {
 // BUG: doesn't handle blank line at start
+  var procs = strdict[MidenOpcodes::stack_state_t]();
+
   while true do
     var x = read io.inp;
     var op = MidenOpcodes::mparse fail x;
@@ -84,14 +86,16 @@ chip get_program (fail:string->any)
     | `proc (name,count) =>
        get_block (&pb, &trail) fail io.inp;
        var s1 = "proc." + name + "." + count.str + " # 0..0\n";
-       var s,a = MidenOpcodes::indent_stack 1 (MidenOpcodes::stack_state_t (0,0)) pb;
+       var s,a = MidenOpcodes::indent_stack fail 1 procs (MidenOpcodes::stack_state_t (0,0)) pb;
        var s2 = s1 + s+ "end   # "+a.str+"\n";
        println$ cat "\n" (map align_comments (split (s2,"\n")));
+       // save stack state of procedure
+       procs.add name a;
 
     | `begin =>
        get_block (&pb, &trail) fail io.inp;
        s1 = "begin # 0..0 \n";
-       s, a = MidenOpcodes::indent_stack 1 (MidenOpcodes::stack_state_t (0,0)) pb;
+       s, a = MidenOpcodes::indent_stack fail 1 procs (MidenOpcodes::stack_state_t (0,0)) pb;
        s2 = s1 + s+ "end   # "+a.str+"\n";
        println$ cat "\n" (map align_comments (split (s2,"\n")));
 

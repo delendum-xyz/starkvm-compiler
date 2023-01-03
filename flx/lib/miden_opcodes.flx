@@ -658,8 +658,12 @@ fun join (x: stack_state_t, y: stack_state_t) =>
   stack_state_t (min (x.minlev, y.minlev), max (x.maxlev, y.maxlev))
 ;
 
+fun == (x:stack_state_t, y:stack_state_t) => x.minlev == y.minlev and x.maxlev == y.maxlev;
+
 instance Str[stack_state_t] {
-  fun str (x:stack_state_t): string => x.minlev.str " .. " x.maxlev.str;
+  fun str (x:stack_state_t): string => 
+    if x.minlev == x.maxlev then x.minlev.str else x.minlev.str " .. " x.maxlev.str
+  ;
 }
 
 // FIXME: adjust for cdrop
@@ -692,7 +696,10 @@ fun indent_stack (n:int) (stkin: stack_state_t)  (x:block_t) : string * stack_st
      let s1 = "  " * n + "if.true   # + "+delta.str+" = "+stkout.str+"\n" in
      let s2,a2 =  indent_stack (n + 1) stkout x in
      let result = join (stkout, a2) in
-     s1 + s2 + "  " * n + "end  # " + result.str + "\n", 
+     let note = 
+       if not (stkout ==  a2) then "DIV" else "join" 
+     in 
+     s1 + s2 + "  " * n + "end  # " +note +  " " + result.str + "\n", 
      result
 
 
@@ -701,8 +708,11 @@ fun indent_stack (n:int) (stkin: stack_state_t)  (x:block_t) : string * stack_st
      let stkout = stkin + delta in
      let s1 = "  " * n + "while.true   # + "+delta.str+" = "+stkout.str+"\n" in
      let s2,a2 =  indent_stack (n + 1) stkout x in
-     let result = a2 in
-     s1 + s2 + "  " * n + "end  # " + result.str+"\n",
+     let result = join (stkin,a2) in
+     let note = 
+       if not (stkin ==  a2) then "DIV" else "join" 
+     in 
+     s1 + s2 + "  " * n + "end  # "+note+" " + result.str+"\n",
      result
 
 
@@ -724,7 +734,10 @@ fun indent_stack (n:int) (stkin: stack_state_t)  (x:block_t) : string * stack_st
      let s4,a4 =  indent_stack (n + 1) stkout f in
 
      let result = join (a2, a4) in
-     s1 + s2 + s3 + s4 + "  " * n + "end  # " + result.str + "\n",  
+     let note = 
+       if not (a2 ==  a4) then "DIV" else "join" 
+     in 
+     s1 + s2 + s3 + s4 + "  " * n + "end # "+note+" " + result.str + "\n",  
      result
 
   endmatch

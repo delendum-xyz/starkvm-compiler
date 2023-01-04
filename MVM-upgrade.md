@@ -1,6 +1,6 @@
 # Proposal to Upgrade Miden Assembler v1
 
-- MVNM shall be the name of the exitsing Miden Assembler
+- MVM shall be the name of the exitsing Miden Assembler
 - BBL shall be the name of the Basic Block Language
 - SAL shall be the name of the Simple Assembler Language
 
@@ -228,17 +228,90 @@ push.target
 if.true push.Fcase else push.Tcase end
 ```
 
-# Performance
+# Program Address Decoding Performance
 This implementation is linear in the number of labels.
 The if then else chain used can be replaced by a binary chop
 yielding logarithmic performance.
 
+It needs to be established the most efficient way to MVM code
+the chop. We use nested if/else blocks corresponding to a 
+balanced binary tree. At depth level k in the tree, bit k
+of the input PC is used to perform a binary choice if there is a choice.
+```
+  pc = ...
+  cc = pc % 2  // get low bit
+  pc >>= 1     // shift low bit off
+  if cc do     // branch on low bit
+    cc = pc % 2 
+    pc >>= 1
+    if cc do
+      ...
+    else
+      ...
+  else
+    cc = pc % 2 
+    pc >>= 1
+    if cc do
+       ...
+    else
+       ...
+    done
+  done
+``` 
+
+Note a similar requirement exists for selecting a switch label.
+However, the number of labels allowed can be  limited to say 15
+and all the optimised cases can then be built directly into
+the translator. The number of labels in a program, however,
+is effectively unbounded.
+
+Because it is harder to read and verify, my research tools just
+use the linear address decoding.
+
+The chop can be performed with bit shifting or the equivalent
+div/mod operations. However the PC does not have to be modified
+at all, instead we can just perform less than or related 
+comparisons with constants.
+
+It is possible that the most deeply nested nodes of the tree would
+execute faster if a linear if/else chain were used there; that is,
+a hybrid algorithm.
+ 
 ## Invariant
 The PC is always on the MVM stack on entry to one of these
 instructions except the startup.
 
+It is also removed at the start of all user code.
+
+Therefore the control flow operations do not interfere with
+the MVM stack.
+
 # Example Fibonacci
-## BBL input
+## SAL input
+```
+program.fib
+fib:
+  push.1  # Rabbit 1
+  push.1  # Rabbit 2
+  push.5  # counter
+
+check:
+  sub.1   # decrement counter
+  dup     # copy for test
+  eq.0    # stop if counter reached 0
+  cgoto.done
+
+  swap.2  # child rabbits
+  dup.2   # parent rabbits
+  add     # grandchildren rabbits
+  swap.2  # counter, grandkids, kids
+  goto.check
+
+done:
+  drop    # drop counter
+  break   # HALT
+```
+## BBL Output
 ```
 program.fib
 fib:
@@ -246,14 +319,17 @@ fib:
   push.1  # Rabbit 2
   push.5  # counter
   Switch check
+
 check:
   sub.1   # decrement counter
   dup     # copy for test
   eq.0    # stop if counter reached 0
   Switch next,done
+
 done:
   drop    # drop counter
   Switch  # HALT
+
 next:
   swap.2  # child rabbits
   dup.2   # parent rabbits
@@ -263,6 +339,7 @@ next:
 ```
 # MVM output
 ```
+program.fib
 begin
 # startup
   push.1 # Entry Point
@@ -273,6 +350,7 @@ begin
     eq.1 # first case
     if.true
       drop  # PC
+# user
       push.1
       push.1
       push.5
@@ -281,6 +359,7 @@ begin
 # -------- CASE  2 = check----------------
     else
       dup # PC
+# user
       eq.4 # case 2
       if.true 
         drop  # PC
@@ -293,6 +372,7 @@ begin
       else
         dup # PC
         eq.4 # case 3
+# user
         if.true 
           drop  # PC
           drop
@@ -301,6 +381,7 @@ begin
 # -------- CASE  4 = next----------------
         else # last case 
           drop # PC
+# user
           swap.2
           dup.2
           add

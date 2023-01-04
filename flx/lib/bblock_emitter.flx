@@ -20,20 +20,20 @@ object emitter (d:label_map_t) (p:program_t) {
     endmatch;
   done 
 
-  method fun emit_switch (x:switch_t) =>
+  method fun emit_switch (indentstr: string) (x:switch_t) =>
     match x.targets.len.int with
-    | 0 => " push.0 # HALT\n"
+    | 0 => indentstr+ "push.0 # HALT\n"
     | 1 => 
       let name = x.targets.head.name in
       match d.get name with
-      | Some idx => " push."+ idx.str + " # " + name  + "\n"
+      | Some idx => indentstr+ "push."+ idx.str + " # " + name  + "\n"
       | None => "IMPOSSIBLE"
       endmatch
     | 2 =>
       let name0 = x.targets.head.name in
       let name1 = x.targets.tail.head.name in
       match d.get name0, d.get name1 with
-      | Some idx0, Some idx1 => " if.true push."+ idx1.str + " else push."+idx0.str " # conditional goto\n"
+      | Some idx0, Some idx1 => indentstr+ "if.true push."+ idx1.str + " else push."+idx0.str " end # conditional goto\n"
       | _ => "IMPOSSIBLE"
       endmatch
     | n => " N CASE SWITCH NOT HANDLED YET\n"
@@ -41,19 +41,20 @@ object emitter (d:label_map_t) (p:program_t) {
   ;
       
 
-  method fun emit_terminal (x:terminator_t) =>
+  method fun emit_terminal (indent: string) (x:terminator_t) =>
     match x with
-    | Switch y => emit_switch y
+    | Switch y => emit_switch indent y
     | t => t.str
   ;
 
 
   method fun emit_body (j:size) : string {
+     var indent = "  " * (if j == n then j - 1 else j endif.int + 2);
      var block = blockmap.j; 
      var bdy = "";
-     for atom in block.atoms for line in atom.masm perform bdy += line + "\n";
+     for atom in block.atoms for line in atom.masm perform bdy += indent + line + "\n";
      var t = block.term;
-     return bdy +  " # terminal\n" + emit_terminal block.term;
+     return bdy +  "# terminal\n" + emit_terminal indent block.term;
   }
 
   method fun emit_startup () {
@@ -61,9 +62,10 @@ object emitter (d:label_map_t) (p:program_t) {
     match mix with
     | Some idx =>
       return 
-        " push."+idx.str + " # Entry Point\n" +
-        " push.1  # Make Loop start\n" +
-        " while.true # Begin loop\n"
+        "# startup\n" +
+        "  push."+idx.str + " # Entry Point\n" +
+        "  push.1  # Make Loop start\n" +
+        "  while.true # Begin loop\n"
       ;
     | None => System::exit(1);
     endmatch;
@@ -71,54 +73,64 @@ object emitter (d:label_map_t) (p:program_t) {
 
   // use for first case
   method fun emit_first () => 
-    " # -------- CASE  1  = " + revmap.1uz + "----------------\n" + 
-    " dup # PC\n" +
-    " eq.1 # first case\n" +
-    " if.true\n" +
-    " drop  # PC\n" +
+    let indent = "    " in 
+    "# -------- CASE  1  = " + revmap.1uz + "----------------\n" + 
+    indent + "dup # PC\n" +
+    indent + "eq.1 # first case\n" +
+    indent + "if.true\n" +
+    indent + "  drop  # PC\n" +
     emit_body 1.size
   ;
 
   // use for middle cases
   method fun emit_case (j:size) =>
-    " # -------- CASE  " + j.str + " = " + revmap.(j.size) + "----------------\n" + 
-    " else\n" +
-    " dup # PC\n" +
-    " eq."+n.str+" # case " + j.str + "\n" +
-    " if.true \n" +
-    " drop  # PC\n" + 
+    let indent = "  " * j.int in 
+    "# -------- CASE  " + j.str + " = " + revmap.(j.size) + "----------------\n" + 
+    indent + "else\n" +
+    indent + "  dup # PC\n" +
+    indent + "  eq."+n.str+" # case " + j.str + "\n" +
+    indent + "  if.true \n" +
+    indent + "    drop  # PC\n" + 
     emit_body j  
   ;
 
   // use for last_case
   method fun emit_last () => 
-    " # -------- CASE  " + n.str + " = " + revmap.(n.size) + "----------------\n" + 
-    " else # \n" +
-    " drop # PC\n" +
+    let indent = "  " * n.int in 
+    "# -------- CASE  " + n.str + " = " + revmap.(n.size) + "----------------\n" + 
+    indent + "else # last case \n" +
+    indent + "  drop # PC\n" +
     emit_body n
   ;
 
-  method fun emit_join () =>
-    " end" * n.int + " # join\n"
-  ;
+  method fun emit_join () {
+    var out = ""; 
+    for i in 1..(n - 1).int do
+      var k = n.int - i;
+      out += "  " + "  " * k + "end\n";
+    done 
+    return out;
+  }
 
   method fun emit_endoff () =>
-    " dup # PC\n" +
-    " neq.0 # loop continues unless PC = 0\n"
-    " end # while loop\n" +
-    " drop # PC\n"
+    "    dup # PC\n" +
+    "    neq.0 # loop continues unless PC = 0\n"
+    "  end # while loop\n" +
+    "  drop # PC\n"
   ;
 
   method fun emit_program () {
     var middle = "";
     for i in 2 .. n.int - 1 perform middle = middle + emit_case i.size;
     return 
+      "begin\n" +
       #emit_startup +
       #emit_first +
       middle + 
       #emit_last +
       #emit_join +
-      #emit_endoff
+      #emit_endoff +
+      "end\n"
     ; 
   }
 }

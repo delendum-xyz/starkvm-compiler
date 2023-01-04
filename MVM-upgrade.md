@@ -237,4 +237,82 @@ yielding logarithmic performance.
 The PC is always on the MVM stack on entry to one of these
 instructions except the startup.
 
-
+# Example Fibonacci
+## BBL input
+```
+program.fib
+fib:
+  push.1  # Rabbit 1
+  push.1  # Rabbit 2
+  push.5  # counter
+  Switch check
+check:
+  sub.1   # decrement counter
+  dup     # copy for test
+  eq.0    # stop if counter reached 0
+  Switch next,done
+done:
+  drop    # drop counter
+  Switch  # HALT
+next:
+  swap.2  # child rabbits
+  dup.2   # parent rabbits
+  add     # grandchildren rabbits
+  swap.2  # counter, grandkids, kids
+  Switch check
+```
+# MVM output
+```
+begin
+# startup
+  push.1 # Entry Point
+  push.1  # Make Loop start
+  while.true # Begin loop
+# -------- CASE  1  = fib----------------
+    dup # PC
+    eq.1 # first case
+    if.true
+      drop  # PC
+      push.1
+      push.1
+      push.5
+# terminal
+      push.2 # check
+# -------- CASE  2 = check----------------
+    else
+      dup # PC
+      eq.4 # case 2
+      if.true 
+        drop  # PC
+        sub.1
+        dup
+        eq.0
+# terminal
+        if.true push.3 else push.4 end # conditional goto
+# -------- CASE  3 = done----------------
+      else
+        dup # PC
+        eq.4 # case 3
+        if.true 
+          drop  # PC
+          drop
+# terminal
+          push.0 # HALT
+# -------- CASE  4 = next----------------
+        else # last case 
+          drop # PC
+          swap.2
+          dup.2
+          add
+          swap.2
+# terminal
+          push.2 # check
+        end
+      end
+    end
+    dup # PC
+    neq.0 # loop continues unless PC = 0
+  end # while loop
+  drop # PC
+end
+```

@@ -5,122 +5,60 @@ include "./lib/bblock_emitter";
 // -----------------------------------------------------
 // Sample program
 var b1 = block_t (
-  "start".label_t, 
+  "fib".label_t, 
   list ( 
-    atom_t ( list ("swap","dup") ), 
-    atom_t ( list ("drop", "u32wrapping_add") )
+    atom_t ( list ("push.1","push.1") ), 
+    atom_t ( list ("push.5") )
    ), // start
-   Switch (switch_t (([label_t ("L1")]))) // unconditional goto
+   Switch (switch_t (([label_t ("check")]))) // unconditional goto
  )
 ;
 
 var b2 = block_t (
-  label_t ("L1"), 
+  label_t ("check"), 
   list ( 
-    atom_t ( list ("swap","dup") ), 
-    atom_t ( list ("drop", "u32wrapping_add") )
+    atom_t ( list ("sub.1","dup","eq.0") )
   ),
-  Switch (switch_t (Empty[label_t])) // HALT 
+  Switch (switch_t ([label_t("next"),label_t("done")]))
 );
+
+var b3 = block_t (
+  label_t ("done"), 
+  list ( 
+    atom_t ( (["drop"]) )
+  ),
+  Switch (switch_t Empty[label_t])
+);
+
+var b4 = block_t (
+  label_t ("next"), 
+  list ( 
+    atom_t ( (["swap.2"]) ), // move counter out of the way, smaller on top
+    atom_t ( (["dup.2"]) ), // copy larger to top
+    atom_t ( (["add"]) ),   // next generation
+    atom_t ( (["movup.2"]) )
+  ),
+  Switch (switch_t ([label_t("check")]))
+);
+
+
 
 // sample program
 var ap = 
   program_t (
-    label_t ("start"),
-    list (b1, b2)
+    label_t ("fib"),
+    list (b1, b2, b3, b4)
   )  // program 
 ;
 
 println$ ap.str;
-
-// -----------------------------------------------------
-// FIBONACCI: from fib.masm
-
-var startup = 
-"""
-                                     # let mut a = 1                           :   2
-  push.1                             # 1                                       :   2
-  loc_store.0                        # init a                                  :   2
-                                     # let mut b = 1                           :   3
-  push.1                             # 1                                       :   3
-  loc_store.1                        # init b                                  :   3
-                                     # let mut n = 10                          :   4
-  push.10                            # 10                                      :   4
-  loc_store.2                        # init n                                  :   4
-                                     # let mut tmp = 0                         :   5
-"""
-;
-
-var block1 = block_t (
-  "fibstart".label_t, 
-  ([atom_t startup]),
-  ugoto "L1" )            // unconditional jump to L1
-;
-
-var fbody = 
-"""
-      loc_load.0                   # <-a                                     :   8
-      loc_store.3                  # tmp<-                                   :   8
-                                   # a = a + b                               :   9
-      loc_load.0                   # <-a                                     :   9
-      loc_load.1                   # <-b                                     :   9
-      u32checked_add               # +                                       :   9
-      loc_store.0                  # a<-                                     :   9
-                                   # b = tmp                                 :  10
-      loc_load.3                   # <-tmp                                   :  10
-      loc_store.1                  # b<-                                     :  10
-                                   # n = n -1                                :  11
-      loc_load.2                   # <-n                                     :  11
-      push.1                       # 1                                       :  11
-      u32checked_sub               # -                                       :  11
-      loc_store.2                  # n<-                                     :  11
-      loc_load.2                   # <-n                                     :  12
-      push.0                       # 0                                       :  12
-      u32checked_gt                # >  
-"""
-;
-var block2 = block_t (
-  "L1".label_t, 
-  ([atom_t fbody]),
-  cgoto "L2" "L1" // if n > 0 goto L1 else L2
-  )
-;
-
-var endoff =
-"""
-                                   # SWITCH EXIT                             :  15
-                                   # eval a                                  :  16
-loc_load.0                         # <-a                                     :  16
-                                   # eval b                                  :  17
-loc_load.1                         # <-b                                     :  17
-""";
-
-var block3 = block_t (
-  "L2".label_t, 
-  ([atom_t endoff]),
-  phalt 
-  )
-;
-
-
-var fib = program_t (
-  "fibstart".label_t, 
-  ([
-    block1, 
-    block2,
-    block3
-  ])
-);
-
-println$ fib.str;
-
-var lm = make_label_map fib;
+var lm = make_label_map ap;
 println$ "Program label map " + lm.str;
 
-validate_program fib lm;
+validate_program ap lm;
 println$ "Label closure confirmed";
 
-var e = emitter lm fib;
+var e = emitter lm ap;
 var c = e.emit_program ();
 println$ " EMITTED PROGHAM ";
 println$ c;

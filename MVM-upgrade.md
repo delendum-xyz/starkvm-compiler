@@ -175,7 +175,64 @@ The current proposal does not introduce features like data types,
 it is intended to purely deal with control structures.
 
 
+# BBL Encoding
+## startup
+```
+push.<entry>" # Entry Point
+push.1  # Make Loop start
+while.true # Begin loop
+```
+# Case 1
+```
+dup       # PC+
+eq.1      # first case
+drop      # PC
+<emit_body 1>
+```
+## Case j
+```
+else\n" +
+  dup     # PC
+  eq.<j>  # case j
+  if.true
+    drop  # PC
+    <emit_body j>
+```
+# Last case
+```
+else 
+  drop    # PC
+  <emit_body n>
+```
+# Endoff
+```
+end.n     # join(n x end) 
+dup       # PC
+neq.0     # loop continues unless PC = 0
+end       # while loop
+drop      # PC
+ 
+```
+## switch
+```
+push.0 # HALT/BREAK
+```
+##switch.target
+```
+push.target
+```
+#switch.Fcase.Tcase
+```
+if.true push.Fcase else push.Tcase end
+```
 
+# Performance
+This implementation is linear in the number of labels.
+The if then else chain used can be replaced by a binary chop
+yielding logarithmic performance.
 
+## Invariant
+The PC is always on the MVM stack on entry to one of these
+instructions except the startup.
 
 

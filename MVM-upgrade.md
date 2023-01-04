@@ -176,18 +176,20 @@ it is intended to purely deal with control structures.
 
 
 # BBL Encoding
+Each label/basic block is assigned a unique integer.
 ## startup
 ```
-push.<entry>" # Entry Point
-push.1  # Make Loop start
-while.true # Begin loop
+push.<entry> # Entry Point
+push.1       # Make Loop start
+while.true   # Begin loop
 ```
-# Case 1
+## Case 1
 ```
-dup       # PC+
+dup       # PC
 eq.1      # first case
-drop      # PC
-<emit_body 1>
+if.true
+  drop      # PC
+  <emit_body 1>
 ```
 ## Case j
 ```
@@ -198,17 +200,17 @@ else\n" +
     drop  # PC
     <emit_body j>
 ```
-# Last case
+## Last case
 ```
 else 
   drop    # PC
   <emit_body n>
 ```
-# Endoff
+## Endoff
 ```
-end.n     # join(n x end) 
-dup       # PC
-neq.0     # loop continues unless PC = 0
+    end.n     # join(n x end) 
+  dup       # PC
+  neq.0     # loop continues unless PC = 0
 end       # while loop
 drop      # PC
  

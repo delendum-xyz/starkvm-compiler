@@ -74,6 +74,7 @@ object emitter (d:label_map_t) (p:program_t) {
     " # -------- CASE  1  = " + revmap.1uz + "----------------\n" + 
     " dup # PC\n" +
     " eq.1 # first case\n" +
+    " if.true\n" +
     " drop  # PC\n" +
     emit_body 1.size
   ;

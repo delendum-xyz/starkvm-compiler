@@ -18,18 +18,26 @@ Thereafter any balanced MVM code may be wriiten,
 where balanced means any embedded `if`, `while`,
 or `repeat` and appropriately terminated.
 
-Code prior to the first label is called the program prologue,
-code at the end is called the epilogue. [Issue: how do
+Code prior to the first label is called the program *prologue*,
+code at the end is called the *epilogue*. [Issue: how do
 we find the epilogue syntactically]
 
-After the end of the embedded MVM code, a terminate
+After the end of the embedded MVM code, a *terminator*
 must be written.
 
 These are the terminators:
-- switch, an indexed goto
-- callcc, a subroutine call: reserved for v2
-- return, return from subroutine: reserved for v2
-- cocall, a coroutine call: reserved for v2
+- `switch`, an indexed goto
+- `callcc`, a subroutine call: reserved for v2
+- `return`, return from subroutine: reserved for v2
+- `cocall`, a coroutine call: reserved for v2
+
+`callcc` and `return` require the introduction of a register `SP` 
+which is a pointer into MVM memory which represents a stack,
+and the allocation of storage for that stack.
+
+`cocall` requires the introduction of multiple stacks,
+and additional machinery and possibly instructions to initiate
+and terminate coroutines.
 
 ## switch
 A switch instruction consists of the identifier `switch` optionally followed by 

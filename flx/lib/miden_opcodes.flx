@@ -1088,6 +1088,49 @@ fun mparse(fail:string->any) (x:token_t) : mark_t {
   endmatch;
 }
 
+typedef smark_t = (
+| mark_t
+| `slabel of string
+| `program of string
+| `cgoto of string 
+| `goto of string
+| `switch of list[string]
+| `subcall of string 
+| `break
+| `return
+);
+instance Str[smark_t] { 
+  fun str: smark_t -> string =
+  | `slabel name => name + ":"
+  | `program name => "program."+name
+  | `goto name => "goto."+name
+  | `cgoto name => "cgoto."+name
+  | `switch labels => "switch" + cat "." labels
+  | `subcall name => "subcall."+name
+  | `return => "return"
+  | `break => "break"
+  | mark_t :>> mark =>  Str[mark_t]::str mark
+  | _ => "FOO"
+  ;
+}
+
+
+fun sparse(fail:string->any) (x:token_t) : smark_t {
+  var subtoks = split (x,".");
+  match subtoks with
+  | ["program",name] => return `program name;
+  | ["cgoto",name] => return `cgoto name;
+  | ["goto",name] => return `goto name;
+  | ["subcall",name] => return `subcall name;
+  | ["return"] => return #`return;
+  | ["break"] => return #`break;
+  | "switch" ! tail => return `switch tail;
+  | [name] when name.[-1] == char ":" => return `slabel name.[to -1];
+  | _ => return mparse fail x :>> smark_t;
+  endmatch;
+}
+
+
 // Crude data for opcodes
 // cycles, stack pop, stack push
 // 

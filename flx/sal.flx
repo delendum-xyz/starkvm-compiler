@@ -1,0 +1,183 @@
+// SAL Parser
+
+include "./lib/mfront_front";
+include "./lib/mfront_printer";
+include "./lib/miden_opcodes";
+include "./lib/strutil";
+
+typedef block_t = MidenOpcodes::block_t;
+typedef mark_t = MidenOpcodes::mark_t;
+typedef smark_t = MidenOpcodes::smark_t;
+
+proc get_block (outb: &block_t, outm: &smark_t) (fail:string->any) (inp: %<string)  {
+  var x = read inp;
+  var op : smark_t = MidenOpcodes::sparse fail x;
+  proc advance() { 
+    x = read inp;
+    op = MidenOpcodes::sparse fail x;
+  }
+  fun isend(x:smark_t) => match x with | `end => true | _ => false;
+  fun iselse(x:smark_t) => match x with | `else=> true | _ => false;
+
+  var blocks = Empty[block_t];
+  var left: block_t;
+  var right: block_t;
+  var trail: smark_t;
+  var gotlabel = false; 
+  while not (op.isend or op.iselse or gotlabel) do
+println$ op.str;
+    match op with
+    | `if =>
+      get_block (&left, &trail) fail inp;
+      match trail with
+      | `end => 
+        blocks = Cons (`if left, blocks);
+        advance;
+
+      | `else =>
+        get_block (&right,&trail) fail inp;
+        if not trail.isend perform fail$ "Improper termination of else block: " + trail.str;
+        blocks = Cons (`ifelse (left, right), blocks);
+        advance;
+
+      | x => fail$ "Improper if block terminator " + trail.str;
+      endmatch;
+
+    | `while =>
+      get_block (&left, &trail) fail inp;
+      blocks = Cons (`while left, blocks);
+      if not trail.isend perform fail$ "Improper termination of while block: " + trail.str;
+      advance;
+
+    | `repeat count =>
+      get_block (&left, &trail) fail inp;
+      blocks = Cons (`repeat (count, left), blocks);
+      if not trail.isend perform fail$ "Improper termination of repeat block: " + trail.str;
+      advance;
+ 
+    | `op op =>
+      blocks = Cons (`op op,blocks);
+      advance;
+
+    | `else => ;
+    | `end => ;
+    | `slabel _ => gotlabel = true; println$ "GOT A LABEL";
+
+    | `switch labels => 
+      println$ "skip switch " + labels.str; 
+      advance;
+
+    | `subcall name => 
+      println$ "skip subcall " + name;
+      advance;
+
+    | `cgoto name =>  
+      println$ "skip cgoto " + name;
+      advance;
+
+    | `goto name =>  
+      println$ "skip goto " + name;
+      advance;
+
+    | `break =>
+      println$ "skip break"; 
+      advance;
+
+    | `return => 
+      println$ "skip return"; 
+      advance;
+ 
+    | _ => fail$ "Get_block: Unexpected " + op.str;
+    endmatch;
+  done
+  var result =  
+    match blocks with
+    | [x] => x
+    | _ => `seq blocks.rev.unbox
+  ;
+  outb <- result; 
+  outm <- op;
+}
+
+chip get_program (fail:string->any) (plblocks: &list[string * block_t])
+  connector io
+    pin inp: %<string
+{
+// BUG: doesn't handle blank line at start
+  var procs = strdict[MidenOpcodes::stack_state_t]();
+ 
+  var run = true;
+  while run do
+    var x = read io.inp;
+    var op = MidenOpcodes::sparse fail x;
+    println$ "get program, start op = " + op.str;
+    var pb : block_t;
+    var trail : smark_t;
+    match op with
+    | `proc (name,count) =>
+       get_block (&pb, &trail) fail io.inp;
+       var s1 = "proc." + name + "." + count.str + " # 0..0\n";
+       var s,a = MidenOpcodes::indent_stack fail 1 procs (MidenOpcodes::stack_state_t (0,0)) pb;
+       var s2 = s1 + s+ "end   # "+a.str+"\n";
+       println$ cat "\n" (map align_comments (split (s2,"\n")));
+       // save stack state of procedure
+       procs.add name a;
+
+    | `program (name) => 
+       println$ "program."+name;
+
+    | `slabel name =>
+       var lab = name;
+next_lab:>
+       println$ "label." + lab;
+       get_block (&pb, &trail) fail io.inp;
+       println$ "Got a block trail=" + trail.str;
+       println$ pb.str;
+       plblocks <- (lab, pb) ! *plblocks;
+       match trail with
+       | `slabel name =>
+          lab = name;
+println$ "Trying for next block for label " + name;
+          goto next_lab;
+       | _ => println$ "Not a label ending";
+       endmatch;
+
+    | `begin =>
+       get_block (&pb, &trail) fail io.inp;
+       s1 = "begin # 0..0 \n";
+       s, a = MidenOpcodes::indent_stack fail 1 procs (MidenOpcodes::stack_state_t (0,0)) pb;
+       s2 = s1 + s+ "end   # "+a.str+"\n";
+       println$ cat "\n" (map align_comments (split (s2,"\n")));
+
+    | op => println$ "get program: Unexpected " + op.str; run = false;
+    endmatch;
+  done
+}
+
+
+proc mvmvalidate(filename:string) {
+  var ein,eout = mk_ioschannel_pair[string]();
+  proc ewriter (e: string) {
+    write (eout, "fail["+ line_count.str + "]: " + e); 
+  }
+  fun failproc (e:string) : any { throw_continuation {  ewriter e; }; };
+  var lblocks = Empty[string * block_t];
+
+  device source = loader (filename, failproc);
+  device counter = line_counter &line_count;
+  device printout = printer &line_count;
+  device prog = get_program failproc &lblocks;
+  var line_count = 0; // reset for pass 2
+  run {
+    circuit 
+      connect source.out, counter.inp
+      connect counter.out, comment_stripper.inp
+      connect comment_stripper.out, instruction_splitter.inp
+      connect instruction_splitter.out, prog.inp
+      wire ein to ehandler.inp
+    endcircuit
+  };
+  println$ "Got lblocks " + lblocks.str;
+}
+
+mvmvalidate(System::argv 1);

@@ -1,0 +1,22 @@
+program.fib
+fib:
+  push.1  # Rabbit 1
+  push.1  # Rabbit 2
+  push.5  # counter
+
+check:
+  sub.1   # decrement counter
+  dup     # copy for test
+  eq.0    # stop if counter reached 0
+  cgoto.done
+
+  swap.2  # child rabbits
+  dup.2   # parent rabbits
+  add     # grandchildren rabbits
+  swap.2  # counter, grandkids, kids
+  goto.check
+
+done:
+  drop    # drop counter
+  break   # HALT
+break:

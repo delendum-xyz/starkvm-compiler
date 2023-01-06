@@ -88,6 +88,9 @@ class lexer {
       | Alph =>
         if ch.iscidcont do
           addch;
+        elif ch == ":" do
+          addch;
+          newtoken;
         else
           newtoken;
         done

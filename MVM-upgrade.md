@@ -42,18 +42,18 @@ and terminate coroutines.
 ## switch
 A switch instruction consists of the identifier `switch` optionally followed by 
 a sequence of dot prefixed arguments.
-- switch, without arguments causes the epilogue to be evaluated
-- switch.label, with one argument, is an unconditional goto
-- switch.F.T with two arguments is a conditional goto
+- `switch`, without arguments causes the epilogue to be evaluated
+- `switch.label`, with one argument, is an unconditional goto
+- `switch.F.T` with two arguments is a conditional goto
   - the stack is popped and the value tested
   - if it is 0, control transfers to label F
   - if it is 1, control transfers to label T
   - otherwise fail
- - switch.L0.L1...Ln-1 is a multiway branch
+ - `switch.L0.L1...Ln-1` is a multiway branch
    - the stack is popped 
    - if the value is not in the range 0..n-1 inclusive fail
-   - otherwise jump to the label in position n,
-   - where n is the value popped off the stack
+   - otherwise jump to the label in position j,
+   - where j is the value popped off the stack
 
 ## Properties of switch
 Basic blocks terminated by switch require no external memory 
@@ -64,10 +64,10 @@ The program counter is never present when user MVM code is elaborated
 
 # callcc/return
 These instructions add subroutine calling capability.
-- callcc has two arguments, the target label and the continuation label
+- `callcc` has two arguments, the target label and the continuation label
 - An auxilliary stack called the BBL stack in memory is required
 - The stack shall grow downwards
-- SP is a memory location containing the current stack pointer
+- `SP` is a memory location containing the current stack pointer
 - C like notation will be used to describe the semantics
 - Instruction `callcc.target.cc`
    - pushes cc onto the BBL stack 
@@ -82,7 +82,7 @@ These instructions add subroutine calling capability.
 # cocall
 The `cocall` instruction requires further research.
 It is used to exchange control between coroutines.
-Coroutiunes are peers which cooerate by control exchange.
+Coroutiunes are peers which cooperate by control exchange.
 It should be an aim to remove MVM `syscall` and replace it with `cocall`.
 Cocall exchanged control with another coroutine:
 - EPILOGUE
@@ -101,8 +101,8 @@ since we will be resumed by a peer executing that prolog.
 
 - JOIN
 - To make this work we will first decide to save the PC on the BLL stack.
-- Then we save the BLL stack somehow.
-- When we resume, we retrieve the BLL stack pointer somehow
+- Then we save the BLL stack pointer `SP` somehow.
+- When we resume, we retrieve the BLL stack pointer `SP` somehow
 - Then we can just pop the PC off the BLL stack
 
 So now, we are left with the problem, how to our BLL stack pointer so we
@@ -129,7 +129,7 @@ because any coroutine can resume any coroutine that has resumed it.
 So, to save and retrieve the SP, each coroutine has to allocate
 some memory at a location private to it.
 
-There is also another issue: how to being the execution of a
+There is also another issue: how to begin the execution of a
 coroutine.
 
 Note also, every coroutine requires its own stack.
@@ -158,7 +158,7 @@ can only be used at the top level.
 - where the translator must synthesise a new label,
 - replace the `cc` symbol in the instruction template with that label, and,
 - issue that label as the label of the next instruction
-- except that, as an optimisation of the next instruction is already labelled
+- except that, as an optimisation if the next instruction is already labelled
 - that already used label should be used instead to aid diagnostics
 - if there is no next instruction, what do we do?
 
@@ -173,7 +173,7 @@ HLL is a low level language built on top of SAL.
 It provides standard stuctured programming constructions
 such as condition chains, various loops, etc.
 
-This is necessary to overcome the retriction that MVM does not
+This is necessary to overcome the restriction that MVM does not
 support BBL terminators in the same way, so that MVM code is
 regarded as atomic and so you cannot say, write a conditional
 goto instruction inside MVM code since the MVM parser does not
@@ -201,7 +201,7 @@ if.true
 ```
 ## Case j
 ```
-else\n" +
+else
   dup     # PC
   eq.<j>  # case j
   if.true
@@ -223,6 +223,12 @@ end       # while loop
 drop      # PC
  
 ```
+
+Note `end.n` means to emit enough `end` instructions to terminate
+all `if/else` instructions introduced by the translation up to
+but excluding the `while` loop (which is ended just below).
+The actual count required is not `n` (TODO: need to establish it).
+
 ## switch
 ```
 push.0 # HALT/BREAK
@@ -235,6 +241,10 @@ push.target
 ```
 if.true push.Fcase else push.Tcase end
 ```
+
+#switch.T1.T2.T3...Tn-1
+Obvious extension to code for two label case.
+[Algo to be specified later]
 
 # Program Address Decoding Performance
 This implementation is linear in the number of labels.
@@ -273,8 +283,10 @@ and all the optimised cases can then be built directly into
 the translator. The number of labels in a program, however,
 is effectively unbounded.
 
-Because it is harder to read and verify, my research tools just
-use the linear address decoding.
+Because the logarithmic method it is harder to read and verify, 
+and harder to encode correctly and efficiently,
+my research tools just use the linear address decoding.
+[Optimal logarithmic algo to be specified]
 
 The chop can be performed with bit shifting or the equivalent
 div/mod operations. However the PC does not have to be modified

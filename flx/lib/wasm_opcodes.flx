@@ -1,0 +1,82 @@
+// WASM opcodes to AST
+class Wasm {
+
+typedef bindata_t = varray[uint8];
+fun get (x:bindata_t) (i:int) => x.(i.size).int;
+//fun get (x:bindata_t) (i:int,l:int) {
+
+fun uleb128(x:bindata_t) (var i:int) : int * uint64 {
+  var y = 0.uint64;
+  var shift = 0.uint64;
+  while x.i \& 0x80.uint8 > 0.uint8 do
+   y = y \| ((x.i.uint64 \& 0x7F.uint64) << shift);
+    shift = shift + 7.uint64;
+    ++i;
+  done
+  y = y \| x.i.uint64 << shift; 
+  return i+1,y;
+}
+
+fun ileb128(x:bindata_t) (i:int) : int * int64 {
+  var j,y = uleb128 x i;
+  if x.(j - 1) \& 0x40.uint8 > 0.uint8 perform
+    y = y \| (~0.uint64 << ((j - i).uint64 * 7.uint64));
+  return j,C_hack::cast[int64] y; 
+}
+
+fun hexb (x:uint8) : string {
+  fun nib (x:uint8) => if x < 10.uint8 then char (x + "0".char.ord.uint8) else char (x - 10.uint8 + "A".char.ord.uint8);
+  var upper =  (x \& 0xF0.uint8) >> 4u8;   
+  var lower =  x \& 0x0F.uint8;
+  return "0x" + upper.nib + lower.nib; 
+}
+
+// Note: section 0 is the header NOT a custom section.
+// We skip custom sections
+typedef section_index_t = (int * int) ^ 12;
+  
+fun parse_wasm (inp: bindata_t) (idx: int) : section_index_t {
+  var tot = inp.len.int - 1;
+  var x : section_index_t;
+  for j in 0..11 perform x&.j <- (0,0); 
+  var start = 8;
+  while start < tot do
+    var i = start;
+    var secbyte = inp.i.uint8;
+    ++i;
+    def i, var n = uleb128 inp i;
+    if secbyte > 0u8 perform
+      x&.secbyte <- (i, n.int);
+    start = i + n.int;
+    if start > tot do
+      println$ "Malformed module, section " + secbyte.str + " overflows data size " + tot.str;
+      System::exit 1; 
+    done 
+  done
+  if start != tot do
+    println$ "Malformed module, final index " + start.str + " should equal file size " + tot.str;
+    System::exit 1;
+  done
+  return x;
+}
+
+} // class
+
+/*  test cases from Wikipedia:
+
+begin 
+  var x = varray (0xE5.uint8,0x8E.uint8,0x26.uint8);
+  println$ x;
+  var i = 0;
+  var j, y = Wasm::uleb128 x i;
+  println$ j,y; // 624485
+end
+begin 
+  var x = varray (0xC0.uint8,0xBB.uint8,0x78.uint8);
+  println$ x;
+  var i = 0;
+  var j, y = Wasm::ileb128 x i;
+  println$ j,y; // -12345
+end
+
+*/

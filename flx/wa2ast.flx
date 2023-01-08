@@ -7,7 +7,7 @@ var n = data.len;
 println$ n.str + " bytes";
 
 var vdata = varray (data);
-var idx = Wasm::parse_wasm (C_hack::cast[varray[uint8]] vdata) 0;
+var idx = Wasm::parse_module_structure (C_hack::cast[varray[uint8]] vdata) 0;
 
 for k in 0..11 perform
   println$ k.str + " " + idx.k.0.str + " for " + idx.k.1.str;

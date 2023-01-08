@@ -2,7 +2,7 @@
 class Wasm {
 
 typedef bindata_t = varray[uint8];
-fun get (x:bindata_t) (i:int) => x.(i.size).int;
+fun get (x:bindata_t) (i:int) => x.(i.size);
 //fun get (x:bindata_t) (i:int,l:int) {
 
 fun uleb128(x:bindata_t) (var i:int) : int * uint64 {
@@ -35,7 +35,7 @@ fun hexb (x:uint8) : string {
 // We skip custom sections
 typedef section_index_t = (int * int) ^ 12;
   
-fun parse_wasm (inp: bindata_t) (idx: int) : section_index_t {
+fun parse_module_structure (inp: bindata_t) (idx: int) : section_index_t {
   var tot = inp.len.int - 1;
   var x : section_index_t;
   for j in 0..11 perform x&.j <- (0,0); 
@@ -58,6 +58,114 @@ fun parse_wasm (inp: bindata_t) (idx: int) : section_index_t {
     System::exit 1;
   done
   return x;
+}
+
+typedef limits = (
+  | `min_limit of  uint32 // 0x00
+  | `range_limit of uint32 * uint32 // 0x01
+);
+
+fun parse_limits (inp: bindata_t) (start:int) : int * limits =>
+  match inp.get start with 
+  | 0x00u8 => 
+    let k,n = uleb128 inp (start + 1) in
+    k,(`min_limit n.uint32 :>> limits)
+  | 0x01u8 => 
+    let k1,n1 = uleb128 inp (start + 1) in
+    let k2,n2 = uleb128 inp k1.int in
+    k2,(`range_limit (n1.uint32, n2.uint32) :>> limits)
+; 
+  
+typedef vec[T] = varray[T];
+
+fun parse_vec[T] (parseT: bindata_t -> int -> int * T) 
+  (inp:bindata_t) (start:int) : int * vec[T] 
+{
+   var j, n = uleb128 inp start;
+   var out = varray[T] (n.size);
+   for i in 0..n.int - 1 do
+    def j, var v = parseT inp j;
+    push_back (out,v);
+  done
+  return j,out;
+}
+
+
+typedef vectype = (
+  | `vectype
+);
+typedef numtype = (
+  | `i32
+  | `i64
+  | `f32
+  | `f64
+);
+ 
+typedef reftype = (
+  | `funcref
+  | `externref
+);
+
+typedef valuetype = (
+  | numtype
+  | vectype
+  | reftype
+);
+
+fun parse_valuetype (inp:bindata_t) (start:int) : int * valuetype =>
+  start + 1,
+  match inp.get start with
+  | 0x7Fu8 => #`i32 :>> valuetype
+  | 0x7Eu8 => #`i64 :>> valuetype
+  | 0x7Du8 => #`f32 :>> valuetype
+  | 0x7Cu8 => #`f64 :>> valuetype
+  | 0x7Bu8 => #`vectype :>> valuetype
+  | 0x70u8 => #`funcref :>> valuetype
+  | 0x6Fu8 => #`externref :>> valuetype
+  endmatch
+;
+
+typedef functype = ( 
+ | `functype of vec[valuetype] * vec[valuetype] 
+);
+
+typedef memtype = (
+ | `memtype of limits
+);
+
+typedef mut = (
+  | `const             // 0x00
+  | `var               // 0x01
+);
+
+typedef globaltype = (
+  | `globaltype of mut * valuetype
+);
+
+typedef tabletype = (
+  `tabletype of reftype * limits
+);
+
+fun parse_functype (inp: bindata_t) (start:int) : int * functype => 
+  let i, domain = parse_vec[valuetype] parse_valuetype inp start in
+  let j, codomain = parse_vec[valuetype] parse_valuetype inp i in
+  j,`functype (domain,codomain)
+;
+
+fun parse_type_section (inp: bindata_t) (var start:int, span:int) : varray[functype] {
+  var endidx = start + span;
+  var i, n = uleb128 inp start;
+  println$ "N fun types = " + n.str;
+  var fts = varray[functype] (n.size);
+  for j in 0 ..  n.int - 1 do
+    def i, var ft = parse_functype inp i;
+    push_back (fts, ft);
+  done
+  if i != endidx do
+    println$ "Malformed function type section, final index " + i.str + " should equal " + endidx.str;
+    System::exit 1;
+  done
+  return fts;
 }
 
 } // class

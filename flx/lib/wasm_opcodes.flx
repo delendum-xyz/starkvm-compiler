@@ -2,8 +2,7 @@
 class Wasm {
 
 typedef bindata_t = varray[uint8];
-fun get (x:bindata_t) (i:int) => x.(i.size);
-//fun get (x:bindata_t) (i:int,l:int) {
+fun get (x:bindata_t) (i:int) :uint8 => x.(i.size);
 
 fun uleb128(x:bindata_t) (var i:int) : int * uint64 {
   var y = 0.uint64;
@@ -60,6 +59,23 @@ fun parse_module_structure (inp: bindata_t) (idx: int) : section_index_t {
   return x;
 }
 
+fun section_name (i:int) : string => 
+  match i with
+  | 0 => "custom"
+  | 1 => "type"
+  | 2 => "import"
+  | 3 => "function"
+  | 4 => "table"
+  | 5 => "memory"
+  | 6 => "global"
+  | 7 => "export"
+  | 8 => "start"
+  | 9 => "element"
+  | 10 => "code"
+  | 11 => "data"
+  | 12 => "data count"
+;
+
 typedef limits = (
   | `min_limit of  uint32 // 0x00
   | `range_limit of uint32 * uint32 // 0x01
@@ -106,15 +122,29 @@ typedef reftype = (
   | `externref
 );
 
+
+fun parse_reftype (inp: bindata_t) (start: int) : int * reftype {
+  var c = inp.get start;
+  return 
+    start + 1,
+    match c with
+    | 0x70u8 => (#`funcref :>> reftype)
+    | 0x6Fu8 => (#`externref :>> reftype)
+    endmatch
+  ;
+}
+
 typedef valuetype = (
   | numtype
   | vectype
   | reftype
 );
+instance Str[valuetype] { fun str (x:valuetype) => x._strr; }
 
-fun parse_valuetype (inp:bindata_t) (start:int) : int * valuetype =>
-  start + 1,
-  match inp.get start with
+fun parse_valuetype (inp:bindata_t) (start:int) : int * valuetype {
+  var c = inp.get start;
+  //println$ "Input code " + c.hexb; 
+  var vt = match c with
   | 0x7Fu8 => #`i32 :>> valuetype
   | 0x7Eu8 => #`i64 :>> valuetype
   | 0x7Du8 => #`f32 :>> valuetype
@@ -122,8 +152,9 @@ fun parse_valuetype (inp:bindata_t) (start:int) : int * valuetype =>
   | 0x7Bu8 => #`vectype :>> valuetype
   | 0x70u8 => #`funcref :>> valuetype
   | 0x6Fu8 => #`externref :>> valuetype
-  endmatch
-;
+  endmatch;
+  return start + 1, vt;
+}
 
 typedef functype = ( 
  | `functype of vec[valuetype] * vec[valuetype] 
@@ -133,24 +164,54 @@ typedef memtype = (
  | `memtype of limits
 );
 
+fun parse_memtype (inp: bindata_t) (start: int) : int * memtype {
+  var nxt, lim = parse_limits inp start;
+  return nxt, `memtype lim;
+}
+
 typedef mut = (
   | `const             // 0x00
   | `var               // 0x01
 );
 
+fun parse_mut (inp: bindata_t) (start: int) : int * mut {
+  var c = inp.get start;
+  return 
+    start + 1,
+    match c with
+    | 0x00u8 => #`const :>> mut
+    | 0x01u8 => #`var :>> mut
+    endmatch
+  ;
+}
+
 typedef globaltype = (
   | `globaltype of mut * valuetype
 );
+
+fun parse_globaltype (inp: bindata_t) (start: int) : int * globaltype {
+  var i, vt = parse_valuetype inp start;
+  var j, mt = parse_mut inp i;
+  return j,`globaltype (mt, vt);
+}
 
 typedef tabletype = (
   `tabletype of reftype * limits
 );
 
-fun parse_functype (inp: bindata_t) (start:int) : int * functype => 
-  let i, domain = parse_vec[valuetype] parse_valuetype inp start in
-  let j, codomain = parse_vec[valuetype] parse_valuetype inp i in
-  j,`functype (domain,codomain)
-;
+fun parse_tabletype (inp: bindata_t) (start: int) : int * tabletype {
+  var i,rt = parse_reftype inp start;
+  var j,lim = parse_limits inp i;
+  return j,`tabletype (rt,lim);
+}
+
+fun parse_functype (inp: bindata_t) (start: int) : int * functype { 
+  var ftcode = inp.get start; 
+  assert ftcode == 0x60.uint8;
+  var cstart, domain = parse_vec[valuetype] parse_valuetype inp (start+1);
+  var cend, codomain = parse_vec[valuetype] parse_valuetype inp cstart;
+  return cend,`functype (domain,codomain);
+}
 
 fun parse_type_section (inp: bindata_t) (var start:int, span:int) : varray[functype] {
   var endidx = start + span;
@@ -167,6 +228,97 @@ fun parse_type_section (inp: bindata_t) (var start:int, span:int) : varray[funct
   done
   return fts;
 }
+
+fun parse_byte (inp: bindata_t) (start: int) : int * uint8 =>
+  let v = inp.get start in
+  start + 1, v
+;
+
+typedef name = (
+| `name of varray[uint8]
+);
+
+instance Str[name] {
+  fun str (x:name) : string {
+    var s = "";
+    match x with
+    | `name v => 
+      for u in v do
+         s += u.int.char;
+      done
+    endmatch;
+    return s;
+  }
+}
+ 
+fun parse_name (inp: bindata_t) (start: int) : int * name {
+  var i, nam = parse_vec[uint8] parse_byte inp start;
+  return i, `name nam;
+}
+
+typedef importdesc = (
+  | `imp_func of int // type index
+  | `imp_table of tabletype 
+  | `imp_mem of memtype 
+  | `imp_global of globaltype
+);
+
+fun parse_importdesc (inp: bindata_t) (start: int) : int * importdesc {
+  var impcode = inp.get start;
+  match impcode with
+  | 0x00u8 => 
+    var nxt0, idx = uleb128 inp (start+1); 
+    return nxt0, (`imp_func idx.int :>> importdesc);
+
+  | 0x01u8 => 
+    var nxt1, ttype = parse_tabletype inp (start + 1);
+    return nxt1, (`imp_table ttype :>> importdesc);
+
+  | 0x02u8 => 
+    var nxt2, mtype = parse_memtype inp (start + 1);
+    return nxt2, (`imp_mem mtype :>> importdesc);
+
+  | 0x03u8 => 
+    var nxt3, gtype = parse_globaltype inp (start + 1);
+    return nxt3, (`imp_global gtype :>> importdesc);
+  endmatch;
+}
+
+typedef import = (
+  | `import of name * name * importdesc
+);
+
+instance Str[import] {
+  fun str: import -> string = 
+  | `import (m,s,d) =>
+     m.str + "::" + s.str + " : " +d._strr
+  ;
+}
+
+fun parse_import (inp: bindata_t) (start: int) : int * import {
+  var i, modname = parse_name inp start;
+  var j, importname = parse_name inp i;
+  var k, desc = parse_importdesc inp j;
+  return k,`import (modname, importname, desc);
+}
+ 
+fun parse_import_section (inp: bindata_t) (var start:int, span:int) : varray[import] {
+  var endidx = start + span;
+  var i, n = uleb128 inp start;
+  println$ "N imports = " + n.str;
+  var fts = varray[import] (n.size);
+  for j in 0 ..  n.int - 1 do
+    def i, var ft = parse_import inp i;
+    push_back (fts, ft);
+  done
+  if i != endidx do
+    println$ "Malformed function import section, final index " + i.str + " should equal " + endidx.str;
+    System::exit 1;
+  done
+  return fts;
+}
+
+
 
 } // class
 

@@ -7,8 +7,22 @@ var n = data.len;
 println$ n.str + " bytes";
 
 var vdata = varray (data);
-var idx = Wasm::parse_module_structure (C_hack::cast[varray[uint8]] vdata) 0;
+var bdata = C_hack::cast[varray[uint8]] vdata;
+var idx = Wasm::parse_module_structure bdata 0;
 
-for k in 0..11 perform
-  println$ k.str + " " + idx.k.0.str + " for " + idx.k.1.str;
+for k in 1..12 perform
+  println$ k.str + " " + k.Wasm::section_name + ": address: " + idx.k.0.str + " len " + idx.k.1.str;
 
+begin
+var types = Wasm::parse_type_section bdata (idx.1);
+  for i in 0uz..types.len - 1uz do
+    println$ i.str +": "+ types.i._strr;
+  done
+end
+
+begin
+var imports= Wasm::parse_import_section bdata (idx.2);
+  for i in 0uz..imports.len - 1uz do
+    println$ i.str +": "+ imports.i.str;
+  done
+end
